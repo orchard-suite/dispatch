@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0](https://github.com/orchard-suite/dispatch/compare/v0.0.41...v1.0.0) (2026-11-23)
+
+### ⚠ BREAKING CHANGES
+
+* **dispatch:** open the source in orchard ([149aec7](https://github.com/orchard-suite/dispatch/commit/149aec7d5b65bf583e2ac3b6ce87d25ab83f7aed))
+
+### Features
+
+* **dispatch:** open the source in orchard ([149aec7](https://github.com/orchard-suite/dispatch/commit/149aec7d5b65bf583e2ac3b6ce87d25ab83f7aed))
+
 ## [0.0.41](https://github.com/orchard-suite/dispatch/compare/v0.0.40...v0.0.41) (2026-11-22)
 
 ### Bug Fixes
