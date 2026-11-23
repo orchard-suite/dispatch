@@ -1,0 +1,204 @@
+{{define "title"}}People and chains · dispatch{{end}}
+{{define "style"}}
+{{template "reach-style"}}
+.who { display:flex; align-items:center; gap:10px; min-width:0; }
+.who b { font-weight:650; overflow-wrap:anywhere; }
+.who small, td small { display:block; color:var(--dim); font-size:12.5px; }
+.who small { white-space:nowrap; }
+.chips { display:flex; flex-wrap:wrap; gap:4px; }
+.chip { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px; font-size:12.5px; font-weight:600; background:var(--sunk); color:var(--ink-2); box-shadow:inset 0 0 0 1px var(--line); white-space:nowrap; }
+.chip.on { background:var(--ok-w); color:var(--ok-ink); box-shadow:none; }
+.chip.off { background:transparent; color:var(--dim); box-shadow:inset 0 0 0 1px var(--line-2); }
+.rule { font-size:13px; }
+.rule .def { color:var(--dim); font-size:12px; }
+.list > li { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:8px 16px; align-items:start; padding:12px 16px; }
+.list { list-style:none; margin:0; padding:0; }
+.list > li + li { border-top:1px solid var(--line); }
+.list .t { font-weight:650; overflow-wrap:anywhere; }
+.list .t code { color:var(--dim); font-weight:500; margin-left:6px; }
+.members { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:6px; font-size:13px; color:var(--ink-2); }
+.members span { display:inline-flex; align-items:center; gap:6px; }
+.members .av { width:22px; height:22px; font-size:12px; }
+.seq { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-wrap:wrap; align-items:stretch; gap:6px; }
+.seq li { display:flex; align-items:center; gap:8px; padding:5px 10px 5px 6px; border-radius:8px; background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line); font-size:13px; overflow-wrap:anywhere; }
+.seq li .n { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--panel); box-shadow:inset 0 0 0 1px var(--line-2); flex-shrink:0; }
+.seq li small { color:var(--dim); font-size:12px; white-space:nowrap; }
+.seq li.again { background:transparent; box-shadow:inset 0 0 0 1px var(--line-2); color:var(--dim); }
+.ends { display:flex; gap:4px; align-items:center; }
+dialog form .db { display:flex; flex-direction:column; gap:12px; max-height:min(70vh, 640px); overflow-y:auto; }
+dialog.wide { width:min(720px, calc(100vw - 24px)); }
+.picks { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:0 12px; }
+@media (max-width:860px) {
+  .tbl.stack thead { display:none; }
+  .tbl.stack tr { display:flex; flex-wrap:wrap; gap:6px 14px; padding:12px; border-top:1px solid var(--line); }
+  .tbl.stack tbody tr:first-child { border-top:0; }
+  .tbl.stack td { display:block; padding:0; border:0; }
+  .tbl.stack td.main { flex-basis:100%; }
+  .tbl.stack td[data-l]::before { content:attr(data-l) ": "; color:var(--dim); font-size:12.5px; }
+  .list > li { grid-template-columns:1fr; padding:12px; }
+}
+{{end}}
+{{define "content"}}
+<main class="page">
+  <div class="ph">
+    <div><h1>People and chains</h1><p class="lede">Who the desk reaches and how. A <b>page</b> works up a chain until someone acknowledges, a <b>notify</b> waits out quiet hours, a <b>notice</b> only lands in a list. Everyone who signs in is kept here and sets their own on <a class="link" href="/me">Me</a>.</p></div>
+    <div class="tools">{{if .SendsBy}}<span class="hint">Sends by</span><span class="chips">{{range .SendsBy}}<span class="chip on">{{.Name}}</span>{{end}}</span>{{end}}{{if .SendsNot}}<span class="hint">Not set up</span><span class="chips">{{range .SendsNot}}<span class="chip off">{{.Name}}</span>{{end}}</span>{{end}}</div>
+  </div>
+  {{if .Done}}<div class="flash ok" data-flash>{{.Done}}</div>{{end}}
+  {{if .Bad}}<div class="flash bad" data-message>{{cap .Bad}}.</div>{{end}}
+
+  <section class="sec">
+    <div class="sh"><h2>People</h2><span class="aside">{{len .People}}</span><span class="tools"><button type="button" class="sm" data-dialog="add-person" data-cmd="Add a person" data-group="People" data-key="P">Add person <kbd>P</kbd></button></span></div>
+    <div class="panel" id="people" data-live>
+    {{if .People}}
+      <table class="tbl stack" id="people-table">
+        <thead><tr><th data-sort>Person</th><th>Reached by</th><th>Page</th><th>Notify</th><th data-sort>Quiet hours</th><th></th></tr></thead>
+        <tbody>
+        {{range $i, $p := .People}}
+          <tr data-row tabindex="0">
+            <td class="main" data-v="{{who $p.Email}}"><div class="who"><span class="av lg">{{initials $p.Email}}</span><div><b>{{who $p.Email}}</b><small>{{if $p.Learned}}signed in {{ago $p.CreatedAt}} ago{{else}}added {{ago $p.CreatedAt}} ago{{end}}</small></div></div></td>
+            <td><span class="chips">{{range $p.Reach}}<span class="chip{{if index $.Sends .M}} on{{else}} off{{end}}">{{.Name}}</span>{{end}}</span></td>
+            {{range $p.Rules}}{{if eq (print .Weight) "page"}}<td class="rule" data-l="Page">{{.Say}}{{if .Default}} <span class="def">default</span>{{end}}</td>{{end}}{{end}}
+            {{range $p.Rules}}{{if eq (print .Weight) "notify"}}<td class="rule" data-l="Notify">{{.Say}}{{if .Default}} <span class="def">default</span>{{end}}</td>{{end}}{{end}}
+            <td data-l="Quiet" class="dim">{{with $p.Quiet}}{{.From}} to {{.To}}{{if .Zone}} <small>{{.Zone}}</small>{{end}}{{else}}never{{end}}</td>
+            <td class="n"><div class="ends">
+              <button type="button" class="sm quiet" data-dialog="person-{{$i}}">Edit</button>
+              <form method="post" action="/people/{{$p.Email}}/delete" data-event="person.delete" data-confirm="Remove {{who $p.Email}}? They are added again when they sign in."><button type="submit" class="sm quiet">Remove</button></form>
+            </div></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    {{else}}
+      <div class="empty"><b>Nobody yet</b>People show here when they sign in.</div>
+    {{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Groups</h2><span class="aside">told together</span><span class="tools"><button type="button" class="sm" data-dialog="add-group" data-cmd="Add a group" data-group="People">Add group</button></span></div>
+    <div class="panel" id="groups" data-live>
+      {{if .Groups}}<ul class="list">
+      {{range $i, $g := .Groups}}
+        <li>
+          <div><div class="t">{{$g.Name}}</div>
+            <div class="members">{{range $g.Members}}<span><span class="av">{{initials .}}</span>{{who .}}</span>{{end}}</div></div>
+          <div class="ends">
+            <button type="button" class="sm quiet" data-dialog="group-{{$i}}">Edit</button>
+            <form method="post" action="/groups/{{$g.Slug}}/delete" data-event="group.delete" data-confirm="Remove the group {{$g.Name}}?"><button type="submit" class="sm quiet">Remove</button></form>
+          </div>
+        </li>
+      {{end}}
+      </ul>{{else}}<div class="empty">No groups. A group is told together, in a chain or a subscription.</div>{{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Chains</h2><span class="aside">told in order until someone acknowledges</span><span class="tools"><button type="button" class="sm" data-dialog="add-chain" data-cmd="Add a chain" data-group="People">Add chain</button></span></div>
+    <div class="panel" id="chains" data-live>
+      {{if .Chains}}<ul class="list">
+      {{range $i, $c := .Chains}}
+        <li>
+          <div><div class="t">{{$c.Name}}</div>
+            <ol class="seq" aria-label="Steps">
+              {{range $c.Say}}<li><span class="n">{{.N}}</span><span>Tell {{range $j, $w := .Who}}{{if $j}}, {{end}}{{$w}}{{end}}</span><small>wait {{.Wait}} min</small></li>{{end}}
+              {{if $c.Repeat}}<li class="again">Then start over, {{$c.Repeat}} more time{{if gt $c.Repeat 1}}s{{end}}</li>{{end}}
+              <li class="again">Then the page ends unanswered</li>
+            </ol></div>
+          <div class="ends">
+            <button type="button" class="sm quiet" data-dialog="chain-{{$i}}">Edit</button>
+            <form method="post" action="/chains/{{$c.Slug}}/delete" data-event="chain.delete" data-confirm="Remove the chain {{$c.Name}}?"><button type="submit" class="sm quiet">Remove</button></form>
+          </div>
+        </li>
+      {{end}}
+      </ul>{{else}}<div class="empty">No chains. A chain tells its steps in order until someone acknowledges.</div>{{end}}
+    </div>
+  </section>
+
+  {{range $i, $p := .People}}
+  <dialog id="person-{{$i}}" class="wide" data-modal aria-label="Edit {{who $p.Email}}">
+    <form method="post" action="/people" data-event="person.save" data-reload>
+      <input type="hidden" name="email" value="{{$p.Email}}">
+      <div class="dh"><span class="av">{{initials $p.Email}}</span><h2>{{who $p.Email}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <label class="field"><span>Name</span><input type="text" name="name" maxlength="80" value="{{$p.Name}}"></label>
+        {{template "reach" $p}}
+        <div class="actions"><button class="primary" type="submit">Save {{who $p.Email}}</button><span class="hint">Saving replaces everything about this person.</span></div>
+      </div>
+    </form>
+  </dialog>
+  {{end}}
+  <dialog id="add-person" class="wide" data-modal aria-label="Add a person">
+    <form method="post" action="/people" data-event="person.save" data-reload>
+      <div class="dh"><h2>Add a person</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <p class="hint">Such as a distribution list. People who sign in are added on their own.</p>
+        <div class="fields">
+          <label class="field"><span>Email</span><input type="email" name="email" required placeholder="someone@example.com"></label>
+          <label class="field"><span>Name</span><input type="text" name="name" maxlength="80"></label>
+        </div>
+        {{template "reach" $.Blank}}
+        <div class="actions"><button class="primary" type="submit">Add the person</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  {{range $i, $g := .Groups}}
+  <dialog id="group-{{$i}}" data-modal aria-label="Edit {{$g.Name}}">
+    <form method="post" action="/groups" data-event="group.save" data-reload>
+      <input type="hidden" name="slug" value="{{$g.Slug}}">
+      <div class="dh"><h2>{{$g.Name}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" value="{{$g.Name}}"></label>
+        <fieldset><legend>Members</legend><div class="picks">{{range $.People}}<label class="check"><input type="checkbox" name="members" value="{{.Email}}"{{if index $g.In .Email}} checked{{end}}>{{who .Email}}</label>{{end}}</div></fieldset>
+        <label class="field"><span>Others, by address</span><input type="text" name="members" value="{{$g.Others}}" placeholder="someone@example.com, another@example.com"></label>
+        <div class="actions"><button class="primary" type="submit">Save the group</button></div>
+      </div>
+    </form>
+  </dialog>
+  {{end}}
+  <dialog id="add-group" data-modal aria-label="Add a group">
+    <form method="post" action="/groups" data-event="group.save" data-reload>
+      <div class="dh"><h2>Add a group</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <div class="fields">
+          <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="Platform Engineering"></label>
+        </div>
+        <fieldset><legend>Members</legend><div class="picks">{{range .People}}<label class="check"><input type="checkbox" name="members" value="{{.Email}}">{{who .Email}}</label>{{end}}</div></fieldset>
+        <label class="field"><span>Others, by address</span><input type="text" name="members" placeholder="someone@example.com"></label>
+        <div class="actions"><button class="primary" type="submit">Add the group</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  {{range $i, $c := .Chains}}
+  <dialog id="chain-{{$i}}" data-modal aria-label="Edit {{$c.Name}}">
+    <form method="post" action="/chains" data-event="chain.save" data-reload>
+      <input type="hidden" name="slug" value="{{$c.Slug}}">
+      <div class="dh"><h2>{{$c.Name}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" value="{{$c.Name}}"></label>
+        {{template "chainsteps" $c.Text}}
+        <label class="field"><span>Start over this many more times</span><input type="number" name="repeat" min="0" max="5" value="{{$c.Repeat}}"></label>
+        <div class="actions"><button class="primary" type="submit">Save the chain</button></div>
+      </div>
+    </form>
+  </dialog>
+  {{end}}
+  <dialog id="add-chain" data-modal aria-label="Add a chain">
+    <form method="post" action="/chains" data-event="chain.save" data-reload>
+      <div class="dh"><h2>Add a chain</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <div class="fields">
+          <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="Platform on call"></label>
+        </div>
+        {{template "chainsteps" ""}}
+        <label class="field"><span>Start over this many more times</span><input type="number" name="repeat" min="0" max="5" value="0"></label>
+        <div class="actions"><button class="primary" type="submit">Add the chain</button></div>
+      </div>
+    </form>
+  </dialog>
+</main>
+{{end}}
+{{define "chainsteps"}}<label class="field"><span>Steps, one a line</span><textarea name="steps" rows="4" required class="code" placeholder="10 schedule:platform&#10;15 person:lead@example.com&#10;30 group:platform">{{.}}</textarea>
+  <small>The minutes to wait for an acknowledgement, then who is told: <code>person:address</code>, <code>group:slug</code>, or <code>schedule:slug</code>.</small></label>{{end}}

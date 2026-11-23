@@ -1,0 +1,48 @@
+{
+  "version": "4",
+  "groupKey": "{}/{namespace=\"comet\"}:{alertname=\"CometSilent\"}",
+  "truncatedAlerts": 0,
+  "status": "resolved",
+  "receiver": "dispatch",
+  "groupLabels": {"alertname": "CometSilent", "namespace": "comet"},
+  "commonLabels": {"namespace": "comet", "severity": "critical"},
+  "commonAnnotations": {},
+  "externalURL": "http://alertmanager.example.internal:9093",
+  "alerts": [
+    {
+      "status": "resolved",
+      "labels": {
+        "alertname": "CometSilent",
+        "namespace": "comet",
+        "job": "comet",
+        "severity": "critical",
+        "prometheus": "observability/kube-prometheus-stack-prometheus"
+      },
+      "annotations": {
+        "summary": "comet has sent no metrics for ten minutes"
+      },
+      "startsAt": "2026-10-31T14:02:11.000Z",
+      "endsAt": "2026-10-31T14:31:11.000Z",
+      "generatorURL": "http://prometheus.example.internal:9090/graph?g0.expr=absent%28comet_build_info%29",
+      "fingerprint": "9f8e7d6c5b4a3921"
+    },
+    {
+      "status": "resolved",
+      "labels": {
+        "alertname": "CometErrors",
+        "namespace": "comet",
+        "page": "true",
+        "job": "comet",
+        "severity": "warning",
+        "prometheus": "observability/kube-prometheus-stack-prometheus"
+      },
+      "annotations": {
+        "summary": "6.2% of requests to comet failed over ten minutes"
+      },
+      "startsAt": "2026-10-31T14:05:41.000Z",
+      "endsAt": "2026-10-31T14:29:41.000Z",
+      "generatorURL": "http://prometheus.example.internal:9090/graph?g0.expr=rate",
+      "fingerprint": "4a1b2c3d4e5f6071"
+    }
+  ]
+}

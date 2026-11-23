@@ -1,0 +1,1476 @@
+openapi: 3.1.0
+info:
+  title: Dispatch API
+  version: 1.0.0
+  description: >-
+    The machine port of Dispatch, the incident desk. Alertmanager's webhook
+    opens and resolves incidents; callers with a token open, list, read, and
+    move incidents through their states, read the outcomes numbers, and send
+    events to the channels that subscribe to them.
+    Every route takes a bearer token: a token the desk issued, or the
+    shared secret Alertmanager sends.
+servers:
+  - url: http://localhost:8081
+    description: A local server from `make run`.
+security:
+  - bearer: []
+tags:
+  - name: alerts
+    description: Alertmanager's webhook, Azure Monitor's action groups, and PagerDuty's Events API.
+  - name: incidents
+    description: Incidents, their states, and their timelines.
+  - name: outcomes
+    description: Time to acknowledge and restore, by service.
+  - name: notices
+    description: Events any product sends, delivered to the channels that subscribe to them.
+paths:
+  /v1/alertmanager:
+    post:
+      operationId: receiveAlertmanagerWebhook
+      summary: Fold an Alertmanager webhook into incidents and notices
+      description: >-
+        An alert that pages (critical, or labelled page=true or notify=sms)
+        joins the incident its alert name and service name, opening one when
+        none is open. Any other alert joins an unresolved incident of its group
+        if there is one, and otherwise goes to the channels as an alert.firing
+        or alert.resolved notice, threaded by its fingerprint: it opens and
+        reopens nothing. A resolved alert never resolves an incident, except an
+        info incident with auto_resolve on once nothing fires.
+      tags: [alerts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertmanagerPayload"
+      responses:
+        "200":
+          description: The alerts were stored. The ids of the incidents each changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/azuremonitor:
+    post:
+      operationId: receiveAzureMonitorAlert
+      summary: Fold an Azure Monitor alert into incidents and notices
+      description: >-
+        An action group's webhook in the common alert schema, one alert a
+        post. A Prometheus rule group's alert keeps its labels and
+        annotations; any other alert is named by its rule, takes its severity
+        from Sev0 and Sev1 (critical), Sev2 (warning), or lower (info), and
+        its service from the customProperties' service, else the resource it
+        fired on. Custom properties become labels, so notify=sms can be added.
+        It then folds exactly as an Alertmanager alert does. The credential is
+        the Entra token of the action group's secure webhook (Azure Monitor's
+        app, for the desk's app, holding the ActionGroupsSecureWebhook role),
+        or an issued token or the shared secret.
+      tags: [alerts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AzureMonitorAlert"
+      responses:
+        "200":
+          description: The alert was stored. The ids of the incidents it changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "503":
+          description: Entra's signing keys could not be read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/incidents:
+    post:
+      operationId: openIncident
+      summary: Open an incident
+      tags: [incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenRequest"
+      responses:
+        "201":
+          description: The incident was opened.
+          headers:
+            Location:
+              description: The incident's page on the desk.
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      operationId: listIncidents
+      summary: List incidents
+      tags: [incidents]
+      parameters:
+        - name: state
+          in: query
+          description: States to keep, separated by commas.
+          schema:
+            type: string
+            examples: ["open,acknowledged"]
+        - name: service
+          in: query
+          description: Keep only this service.
+          schema:
+            type: string
+        - name: severity
+          in: query
+          description: Keep only this severity.
+          schema:
+            $ref: "#/components/schemas/Severity"
+        - name: q
+          in: query
+          description: Text to search for.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: The most incidents to answer with. The default is 500.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+      responses:
+        "200":
+          description: The incidents that match.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Incident"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    get:
+      operationId: getIncident
+      summary: Read an incident with its alerts, timeline, postmortem, and action items
+      tags: [incidents]
+      responses:
+        "200":
+          description: The incident.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}/acknowledge:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: acknowledgeIncident
+      summary: Acknowledge an incident
+      description: The actor becomes the owner when the incident has none.
+      tags: [incidents]
+      requestBody:
+        $ref: "#/components/requestBodies/Change"
+      responses:
+        "200":
+          $ref: "#/components/responses/Changed"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}/mitigate:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: mitigateIncident
+      summary: Mark an incident mitigated
+      tags: [incidents]
+      requestBody:
+        $ref: "#/components/requestBodies/Change"
+      responses:
+        "200":
+          $ref: "#/components/responses/Changed"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}/resolve:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: resolveIncident
+      summary: Resolve an incident
+      tags: [incidents]
+      requestBody:
+        $ref: "#/components/requestBodies/Change"
+      responses:
+        "200":
+          $ref: "#/components/responses/Changed"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}/reopen:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: reopenIncident
+      summary: Reopen a resolved incident
+      tags: [incidents]
+      requestBody:
+        $ref: "#/components/requestBodies/Change"
+      responses:
+        "200":
+          $ref: "#/components/responses/Changed"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}/notes:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: addIncidentNote
+      summary: Add a note to an incident's timeline
+      description: A public note shows on the status page.
+      tags: [incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/Changed"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/incidents/{id}/roles:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: setIncidentRole
+      summary: Give a person a role on an incident
+      description: A role is commander, comms, or scribe. An empty person takes it away. The change is on the timeline.
+      tags: [incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: {type: string, enum: [commander, comms, scribe]}
+                person: {type: string, format: email}
+      responses:
+        "200":
+          description: The incident.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/incidents/{id}/merge:
+    parameters:
+      - $ref: "#/components/parameters/IncidentID"
+    post:
+      operationId: mergeIncident
+      summary: Merge an incident into another
+      description: Its alerts move to the other, the two are linked, and it resolves, as the token on behalf of actor.
+      tags: [incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [into]
+              properties:
+                into: {type: integer, format: int64}
+                actor: {type: string}
+      responses:
+        "200":
+          description: The merged incident, now resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Incident"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/outcomes:
+    get:
+      operationId: getOutcomes
+      summary: Read time to acknowledge and restore, in total and by service
+      tags: [outcomes]
+      parameters:
+        - name: window
+          in: query
+          description: How far back to look, in hours or days, up to 365d. The default is 30d.
+          schema:
+            type: string
+            pattern: "^[0-9]+[hdHD]$"
+            examples: ["30d"]
+      responses:
+        "200":
+          description: The numbers for the window.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutcomesReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/events:
+    post:
+      operationId: sendEvent
+      summary: Send an event to the channels, people, groups, and chains it reaches
+      description: >-
+        Any product sends what happened as one event. The desk stores it and
+        queues it for every channel a subscription sends it to, and for the
+        people, groups, and escalation chains it is addressed to in `to` or a
+        subscription sends it to. Its weight decides how people are told: a
+        page starts each chain it reaches, which tells its steps in order until
+        someone acknowledges; notify reaches people by their notify rule; a
+        notice lands only in their list. Anything but a page waits out a
+        person's quiet hours. Each person is told by the media their rule for
+        the weight gives (Teams, Discord, SMS, email), each once however many
+        routes reach them. A person who chose on Me how to be told of this
+        kind is told that way and not by their rule, when the kind is one this
+        producer declared with PUT /v1/kinds and the event is not a page: a
+        page always goes by the page rule. Every delivery is
+        tried again on a growing wait until it is taken. The producer is the
+        token's name, never the body's word. A second event with the same
+        producer and key is a repeat and is queued nowhere. An event with a
+        dedup_key moves a thread: the first trigger opens it and reaches
+        everyone, a later trigger reaches channels only, acknowledge ends the
+        thread's pages, and resolve closes it so the next trigger opens anew.
+        When a person acknowledges a page, dispatch sends a page.acknowledged
+        event, labelled with the producer, kind, event_key, and dedup_key, for
+        the producer to subscribe to.
+      tags: [notices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoticeEvent"
+            examples:
+              approval:
+                value:
+                  kind: action.awaiting_approval
+                  key: run-6f1c2a
+                  title: Restart beacon-api-prod waits for approval
+                  entity: {blueprint: azure_app_service, key: beacon-api-prod, title: beacon-api-prod}
+                  facts: [{name: Action, value: Restart a service}, {name: Environment, value: Prod}, {name: Asked by, value: someone@example.com}]
+                  links: [{title: Approve in Orrery, url: "https://orrery.example.org/self-service/runs/6f1c2a"}]
+                  labels: {env: Prod}
+              mention:
+                value:
+                  kind: vantage.mention
+                  key: comment-81-u_3
+                  title: A user mentioned you on Shop / Context
+                  links: [{title: Open the view, url: "https://vantage.example.org/w/shop/d/shop?view=context"}]
+                  to: [{person: someone@example.com}]
+              paged:
+                value:
+                  kind: build.failed
+                  key: pipeline-4471
+                  title: The release pipeline failed
+                  severity: critical
+                  to: [{chain: platform-oncall}, {group: platform}]
+      responses:
+        "202":
+          description: Stored, and queued for the channels and people it reaches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoticeAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "503":
+          description: This desk sends no notices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/kinds:
+    put:
+      operationId: declareKinds
+      summary: Declare the kinds of event a product sends
+      description: >-
+        A product says, in one call, every kind of event it sends, in words a
+        person reads. The desk shows them on Me, one row per kind under the
+        product's name, and each person chooses there how to be told of each:
+        by which media, or on their list only. The producer is the token's
+        name, never the body's word, exactly as for an event. The body is the
+        producer's whole set and replaces what it declared before: a kind left
+        out is dropped, with every person's choice for it, and a kind kept
+        keeps its choices. An empty list drops them all. A kind another
+        producer declared is refused and named. A choice never turns a page
+        down: `weight` is the weight the producer usually sends the kind with,
+        what Me shows as the row's default, and a kind declared as a page is
+        shown as fixed. An event still carries its own weight. A personal
+        token may not declare kinds.
+      tags: [notices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KindsDeclaration"
+            examples:
+              approvals:
+                value:
+                  kinds:
+                    - kind: action.awaiting_approval
+                      title: A request waits for your approval
+                      description: Someone asked for a change that you can approve or refuse.
+                      weight: notify
+                    - kind: action.finished
+                      title: A request you made finished
+                      weight: notice
+      responses:
+        "200":
+          description: The producer's set is now this one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KindsDeclared"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: A personal token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /v1/sms:
+    post:
+      operationId: receiveSmsEvents
+      summary: Take Event Grid's events for the desk's SMS number
+      description: >-
+        Event Grid posts here with an issued token as a static Authorization
+        header. A subscription validation is answered with its code. A text
+        from a number on People answers the newest page that texted that
+        person: ACK (or A, OK, YES) acknowledges it as them, ESC (or E, NEXT)
+        tells its next step now, and the desk texts back what it did. A text
+        from any other number is ignored. A delivery report tagged with one of
+        the desk's messages is kept as that message's receipt.
+      tags: [notices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [eventType, data]
+                properties:
+                  id: {type: string}
+                  eventType: {type: string, enum: [Microsoft.EventGrid.SubscriptionValidationEvent, Microsoft.Communication.SMSReceived, Microsoft.Communication.SMSDeliveryReportReceived]}
+                  data: {type: object}
+      responses:
+        "200":
+          description: Taken. A validation is answered with its code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  validationResponse: {type: string}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/heartbeats/{name}:
+    post:
+      operationId: heartbeat
+      summary: Check in for a heartbeat
+      description: >-
+        A job that promised to check in every interval does so here. Past its
+        interval and grace without one, the desk raises a HeartbeatMissed alert
+        at the heartbeat's severity, which pages like any alert; the next
+        check-in resolves the alert. An unknown name is made by its first
+        check-in when interval is given, at critical severity.
+      tags: [alerts]
+      parameters:
+        - {name: name, in: path, required: true, schema: {type: string, pattern: "^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$"}}
+        - {name: interval, in: query, schema: {type: string, examples: ["24h"]}, description: "Makes an unknown heartbeat checking in this often, such as 15m or 24h."}
+      responses:
+        "200":
+          description: Recorded. The heartbeat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Heartbeat"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/changes:
+    post:
+      operationId: addChange
+      summary: Record a deploy or another change to a service
+      description: >-
+        The change shows on the page of every incident on the service that
+        opened up to two hours after it, and goes to the channels as a
+        change.<kind> notice labelled with the service.
+      tags: [alerts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service, title]
+              properties:
+                service: {type: string}
+                kind: {type: string, pattern: "^[a-z][a-z0-9_]{0,30}$", description: Deploy when left out.}
+                title: {type: string, maxLength: 300}
+                url: {type: string, format: uri}
+                by: {type: string}
+                at: {type: string, format: date-time, description: Now when left out.}
+      responses:
+        "201":
+          description: Kept.
+          content:
+            application/json:
+              schema: {type: object}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/schedules:
+    get:
+      operationId: listOnCall
+      summary: Who each schedule has on call now
+      tags: [notices]
+      responses:
+        "200":
+          description: Every schedule, with who is on call and until when; person is empty for nobody.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    slug: {type: string}
+                    name: {type: string}
+                    person: {type: string}
+                    until: {type: string, format: date-time}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/schedules/{slug}/overrides:
+    post:
+      operationId: coverSchedule
+      summary: Put someone on call for a while
+      description: A cover, or one half of a swap. It sits above every layer of the schedule. It ends in the future and lasts at most a month.
+      tags: [notices]
+      parameters:
+        - {name: slug, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [person, from, to]
+              properties:
+                person: {type: string, format: email}
+                from: {type: string, format: date-time}
+                to: {type: string, format: date-time}
+                reason: {type: string, maxLength: 300}
+      responses:
+        "201":
+          description: The cover.
+          content:
+            application/json:
+              schema: {type: object}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/calendar/{secret}:
+    get:
+      operationId: calendarFeed
+      summary: One person's shifts as an iCalendar feed
+      description: >-
+        A calendar app subscribes to the link a person makes on Me. It cannot
+        send a bearer token, so the link's secret is the credential, kept only
+        as a hash for that one person. The feed holds that person's shifts on
+        every schedule from a week ago to two months ahead.
+      tags: [notices]
+      security: []
+      parameters:
+        - {name: secret, in: path, required: true, schema: {type: string}, description: "The link's secret, with or without .ics."}
+      responses:
+        "200":
+          description: The feed.
+          content:
+            text/calendar:
+              schema: {type: string}
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/config:
+    get:
+      operationId: exportConfig
+      summary: The desk's routing as one YAML document
+      description: People, groups, chains, schedules, subscriptions (channels by name), heartbeats, and settings, as PUT takes them, for keeping in git.
+      tags: [notices]
+      responses:
+        "200":
+          description: The document.
+          content:
+            application/yaml:
+              schema: {type: string}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: applyConfig
+      summary: Make the desk's routing what a YAML document says
+      description: >-
+        The whole document is checked before anything changes. A section given
+        replaces what the desk has; a section left out is left alone; people
+        are added or changed, never removed. Channels are named, not made: a
+        channel's URL is a secret added on Notifications. A personal token may
+        not apply a document.
+      tags: [notices]
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema: {type: string}
+      responses:
+        "200":
+          description: What it changed.
+          content:
+            application/json:
+              schema: {type: object}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: A personal token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v2/enqueue:
+    post:
+      operationId: pagerDutyEvent
+      summary: Take a PagerDuty Events API v2 event
+      description: >-
+        Anything that pages PagerDuty pages the desk by pointing at this URL
+        instead. The routing_key is an issued token or the shared secret,
+        since PagerDuty's protocol carries the credential in the body. A
+        trigger is an alert whose fingerprint is the dedup_key, folded in like
+        Alertmanager's: error and critical page. An acknowledge notes on the
+        alert's incident that its source acknowledged it; a person still owns
+        the incident. A resolve resolves the alert, never the incident.
+      tags: [alerts]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [routing_key, event_action]
+              properties:
+                routing_key: {type: string}
+                event_action: {type: string, enum: [trigger, acknowledge, resolve]}
+                dedup_key: {type: string, maxLength: 255}
+                payload:
+                  type: object
+                  properties:
+                    summary: {type: string, maxLength: 1024}
+                    source: {type: string}
+                    severity: {type: string, enum: [critical, error, warning, info]}
+                    timestamp: {type: string, format: date-time}
+                    component: {type: string}
+                    group: {type: string}
+                    class: {type: string}
+                    custom_details: {type: object}
+                client: {type: string}
+                client_url: {type: string}
+      responses:
+        "202":
+          description: Taken.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, examples: [success]}
+                  message: {type: string}
+                  dedup_key: {type: string}
+        "400":
+          description: Invalid, or a routing_key this desk did not issue.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, examples: [invalid event]}
+                  message: {type: string}
+                  errors: {type: array, items: {type: string}}
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /mcp:
+    post:
+      operationId: mcp
+      summary: The desk as an MCP server
+      description: >-
+        Streamable HTTP, stateless, answering JSON. Tools: list_incidents,
+        get_incident, who_is_on_call, send_event (as the token), and, with a
+        personal token made on Me, acknowledge_incident, add_note, my_list, and
+        acknowledge_page, as that person.
+      tags: [notices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, description: A JSON-RPC 2.0 message.}
+      responses:
+        "200":
+          description: The JSON-RPC answer.
+          content:
+            application/json:
+              schema: {type: object}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/messages:
+    post:
+      operationId: botActivity
+      summary: The Teams bot's door
+      description: >-
+        Microsoft's bot service posts the Teams bot's activities here: the bot
+        added to or removed from a team, a message to it, and a click on one
+        of its cards' buttons. It takes only a token the bot service signed for
+        this bot, naming the service URL the activity came from. A card button
+        is answered with an invoke response: a sign-in request, the card with
+        what the person did, or a message only they see.
+      tags: [notices]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, description: A Bot Framework activity.}
+      responses:
+        "200":
+          description: Taken. A card button gets its invoke response.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: From another tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: This desk has no Teams bot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/discord:
+    post:
+      operationId: discordInteraction
+      summary: The Discord bot's door
+      description: >-
+        Discord posts the bot's interactions here: its check of the endpoint
+        (a ping, answered with a pong) and a press of a page card's
+        Acknowledge or Pass it on button. It takes only a body Discord signed
+        with the application's public key (X-Signature-Ed25519 over
+        X-Signature-Timestamp and the body). A press acts as the person whose
+        Discord account is on their Me page, and is answered with a message
+        only they see.
+      tags: [notices]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, description: A Discord interaction.}
+      responses:
+        "200":
+          description: A pong, or the answer to a press.
+          content:
+            application/json:
+              schema: {type: object}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: The signature does not hold.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: This desk has no Discord bot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: A token the desk issued, or the shared secret Alertmanager sends.
+  parameters:
+    IncidentID:
+      name: id
+      in: path
+      required: true
+      description: The incident's id.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+  requestBodies:
+    Change:
+      description: >-
+        Optional. The name of whoever the caller acts for, written on the
+        timeline instead of the token's name.
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ChangeRequest"
+  responses:
+    Changed:
+      description: The incident after the change.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Incident"
+    BadRequest:
+      description: The request could not be read, or the change is not allowed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: No bearer token, or one that is not valid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No such incident.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerError:
+      description: The server could not do it.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    NoticeRef:
+      type: object
+      required: [blueprint, key]
+      description: One catalog entity.
+      properties:
+        blueprint: {type: string}
+        key: {type: string}
+        title: {type: string}
+    NoticeEvent:
+      type: object
+      required: [kind]
+      description: >-
+        What happened. A subscription anchored on a catalog entity takes the
+        event when its entity is that entity or reaches it through its
+        relations.
+      properties:
+        kind: {type: string, pattern: "^[a-z0-9_]+(\\.[a-z0-9_]+)+$", description: "Dotted words, such as action.finished.", examples: [action.finished]}
+        key: {type: string, minLength: 1, maxLength: 200, description: "The producer's own id for the event, so a retried send is stored once. Made up when left out, which gives no such guarantee."}
+        title: {type: string, minLength: 1, maxLength: 300, description: Required for a trigger; an acknowledge or resolve takes its thread's title when left out.}
+        weight: {type: string, enum: [notice, notify, page], description: "How hard it pushes on people. Page when it reaches a chain and notify otherwise, when left out."}
+        action: {type: string, enum: [trigger, acknowledge, resolve], description: What it does to the thread its dedup_key names; trigger when left out.}
+        dedup_key: {type: string, maxLength: 255, description: Ties the event to a thread of the producer's. Acknowledge and resolve need it.}
+        text: {type: string, maxLength: 4000}
+        page: {type: string, maxLength: 262144, description: "The event drawn by its producer as a whole HTML page, for mail alone: a person's letter is this page, with the event's own words as its plain text. No other medium or channel is given it, and no answer carries it back."}
+        severity: {type: string, enum: [critical, warning, info]}
+        entity: {$ref: "#/components/schemas/NoticeRef"}
+        facts:
+          type: array
+          maxItems: 20
+          items: {type: object, required: [name, value], properties: {name: {type: string, maxLength: 80}, value: {type: string, maxLength: 500}}}
+        links:
+          type: array
+          maxItems: 5
+          items: {type: object, required: [title, url], properties: {title: {type: string}, url: {type: string, format: uri}}}
+        actions:
+          type: array
+          maxItems: 3
+          description: >-
+            Calls on the producer's own API that the Teams bot shows as buttons.
+            Whoever clicks one signs in and the bot makes the call as them, so the
+            producer decides whether they may. Only the producer the bot acts for
+            gets its actions shown; a webhook channel never shows them.
+          items:
+            type: object
+            required: [title, path, done]
+            properties:
+              title: {type: string, maxLength: 40}
+              path: {type: string, description: "A path on the producer's API, such as /v1/action-runs/6f1c2a/approve."}
+              style: {type: string, enum: [positive, destructive]}
+              done: {type: string, maxLength: 40, description: "The past tense the card shows after, such as approved."}
+        labels: {type: object, additionalProperties: {type: string}, description: Matched by a subscription's label globs.}
+        to:
+          type: array
+          maxItems: 20
+          description: >-
+            People, groups, and chains to tell besides the channels. A person
+            not in the desk's directory is still sent email. A group or chain
+            the desk does not have refuses the event with a 400 naming it.
+          items: {$ref: "#/components/schemas/NoticeTarget"}
+        at: {type: string, format: date-time, description: When it happened; now when left out.}
+    NoticeTarget:
+      type: object
+      description: Exactly one of person, group, or chain.
+      minProperties: 1
+      maxProperties: 1
+      properties:
+        person: {type: string, format: email, description: One person or a distribution list, by address.}
+        group: {type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$", description: A group of people on the desk, by slug.}
+        chain: {type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$", description: An escalation chain on the desk, by slug.}
+    NoticeAccepted:
+      type: object
+      required: [event, queued, messages, pages, repeat]
+      properties:
+        event: {$ref: "#/components/schemas/NoticeEvent"}
+        queued: {type: integer, description: The channels it is on its way to.}
+        messages: {type: integer, description: The messages on their way to people, one per person per medium.}
+        pages: {type: integer, description: The escalation chains it started.}
+        repeat: {type: boolean, description: True when the producer had already sent this key.}
+        deduplicated: {type: boolean, description: True when a trigger joined a thread already open, so channels have it and nobody was told again.}
+        dropped: {type: string, description: Why an acknowledge or resolve moved nothing, such as no open thread under its dedup_key.}
+    KindsDeclaration:
+      type: object
+      required: [kinds]
+      properties:
+        kinds:
+          type: array
+          maxItems: 100
+          description: Every kind the producer sends. It replaces the producer's whole set.
+          items: {$ref: "#/components/schemas/DeclaredKind"}
+    DeclaredKind:
+      type: object
+      required: [kind, title, weight]
+      properties:
+        kind:
+          type: string
+          maxLength: 200
+          pattern: "^[a-z0-9_]+(\\.[a-z0-9_]+)+$"
+          description: "Dotted words, such as action.finished, as events carry it in `kind`."
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: What the kind is, in a few words a person reads on Me.
+        description:
+          type: string
+          maxLength: 300
+          description: One sentence a person reads on Me.
+        weight:
+          type: string
+          enum: [notice, notify, page]
+          description: The weight the producer usually sends this kind with. An event still carries its own.
+    KindsDeclared:
+      type: object
+      required: [kinds]
+      properties:
+        kinds: {type: integer, description: How many kinds the producer now declares.}
+    Error:
+      type: object
+      description: Every error the API answers with.
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: What went wrong, in words.
+    Severity:
+      type: string
+      enum: [critical, warning, info]
+    State:
+      type: string
+      enum: [open, acknowledged, mitigated, resolved]
+    Source:
+      type: string
+      enum: [alertmanager, api, desk]
+    Incident:
+      type: object
+      required: [id, title, severity, state, service, source, auto_resolve, public, opened_at, updated_at, last_update, firing_alerts, alerts]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        severity:
+          $ref: "#/components/schemas/Severity"
+        state:
+          $ref: "#/components/schemas/State"
+        service:
+          type: string
+          description: The component the incident is on.
+        workload:
+          type: string
+          description: The Orrery workload the service resolved to, when known.
+        group_key:
+          type: string
+          description: What joins alerts into this incident.
+        owner:
+          type: string
+        source:
+          $ref: "#/components/schemas/Source"
+        auto_resolve:
+          type: boolean
+        public:
+          type: boolean
+          description: The title shows on the status page.
+        opened_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+        mitigated_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_update:
+          type: string
+          description: The newest timeline line.
+        firing_alerts:
+          type: integer
+        alerts:
+          type: integer
+          description: Every alert the incident holds, firing or not.
+        quiet_since:
+          type: string
+          format: date-time
+          description: When its last alert stopped firing, while none fires.
+        closes_at:
+          type: string
+          format: date-time
+          description: While it is settling (unresolved, opened by alerts, none firing), when the quiet window resolves it.
+    IncidentView:
+      description: An incident with its alerts, timeline, postmortem, and action items.
+      allOf:
+        - $ref: "#/components/schemas/Incident"
+        - type: object
+          required: [alerts, timeline, action_items]
+          properties:
+            alerts:
+              type: array
+              items:
+                $ref: "#/components/schemas/Alert"
+            timeline:
+              type: [array, "null"]
+              items:
+                $ref: "#/components/schemas/Event"
+            postmortem:
+              $ref: "#/components/schemas/Postmortem"
+            action_items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ActionItem"
+    Alert:
+      type: object
+      required: [fingerprint, alertname, status, labels, annotations, starts_at]
+      properties:
+        fingerprint:
+          type: string
+        alertname:
+          type: string
+        status:
+          type: string
+          enum: [firing, resolved]
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+    Event:
+      type: object
+      required: [id, incident_id, at, kind, actor, text, public]
+      properties:
+        id:
+          type: integer
+          format: int64
+        incident_id:
+          type: integer
+          format: int64
+        at:
+          type: string
+          format: date-time
+        kind:
+          type: string
+          enum: [opened, alert_firing, alert_resolved, acknowledged, mitigated, resolved, reopened, assigned, severity, note, postmortem, action, public]
+        actor:
+          type: string
+        text:
+          type: string
+        public:
+          type: boolean
+    Postmortem:
+      type: object
+      required: [incident_id, body, updated_at, updated_by]
+      properties:
+        incident_id:
+          type: integer
+          format: int64
+        body:
+          type: string
+          description: Markdown.
+        updated_at:
+          type: string
+          format: date-time
+        updated_by:
+          type: string
+    ActionItem:
+      type: object
+      required: [id, incident_id, text, done, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        incident_id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        owner:
+          type: string
+        done:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    OpenRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        severity:
+          type: string
+          description: critical, warning, or info. Anything else is a warning.
+        service:
+          type: string
+          description: The component. Empty is "unknown".
+        description:
+          type: string
+          description: Written on the timeline's first line.
+        public:
+          type: boolean
+    ChangeRequest:
+      type: object
+      properties:
+        actor:
+          type: string
+          description: Who the caller acts for.
+    NoteRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        public:
+          type: boolean
+        actor:
+          type: string
+          description: Who the caller acts for. The token's name when empty.
+    Heartbeat:
+      type: object
+      properties:
+        name: {type: string}
+        interval: {type: integer, description: Nanoseconds.}
+        grace: {type: integer, description: Nanoseconds.}
+        service: {type: string}
+        severity: {$ref: "#/components/schemas/Severity"}
+        last_at: {type: string, format: date-time}
+        late: {type: boolean}
+    IngestResult:
+      type: object
+      required: [opened, updated, reopened, resolved, notices, dropped]
+      properties:
+        dropped: {type: integer, description: The alerts a route threw away.}
+        notices: {type: integer, description: The alerts that page nobody and went to the channels as notices.}
+        opened:
+          type: array
+          items:
+            type: integer
+            format: int64
+        updated:
+          type: array
+          items:
+            type: integer
+            format: int64
+        reopened:
+          type: array
+          items:
+            type: integer
+            format: int64
+        resolved:
+          type: array
+          items:
+            type: integer
+            format: int64
+    AzureMonitorAlert:
+      type: object
+      description: One alert in Azure Monitor's common alert schema.
+      required: [schemaId, data]
+      properties:
+        schemaId: {type: string, enum: [azureMonitorCommonAlertSchema]}
+        data:
+          type: object
+          required: [essentials]
+          properties:
+            essentials:
+              type: object
+              required: [alertRule, monitorCondition]
+              properties:
+                alertId: {type: string}
+                alertRule: {type: string}
+                severity: {type: string, enum: [Sev0, Sev1, Sev2, Sev3, Sev4]}
+                signalType: {type: string}
+                monitorCondition: {type: string, enum: [Fired, Resolved]}
+                monitoringService: {type: string}
+                alertTargetIDs: {type: array, items: {type: string}}
+                firedDateTime: {type: string, format: date-time}
+                resolvedDateTime: {type: string, format: date-time}
+                description: {type: string}
+                investigationLink: {type: string}
+            alertContext:
+              type: object
+              description: For a Prometheus alert, its labels, annotations, and expressionValue.
+            customProperties:
+              type: [object, "null"]
+              additionalProperties: {type: string}
+    AlertmanagerPayload:
+      type: object
+      description: Alertmanager's webhook payload, version 4.
+      required: [alerts]
+      properties:
+        version:
+          type: string
+        groupKey:
+          type: string
+        truncatedAlerts:
+          type: integer
+        status:
+          type: string
+        receiver:
+          type: string
+        groupLabels:
+          type: object
+          additionalProperties:
+            type: string
+        commonLabels:
+          type: object
+          additionalProperties:
+            type: string
+        commonAnnotations:
+          type: object
+          additionalProperties:
+            type: string
+        externalURL:
+          type: string
+        alerts:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AlertmanagerAlert"
+    AlertmanagerAlert:
+      type: object
+      required: [status, labels]
+      properties:
+        status:
+          type: string
+          enum: [firing, resolved]
+        labels:
+          type: object
+          description: Must hold alertname.
+          required: [alertname]
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        generatorURL:
+          type: string
+        fingerprint:
+          type: string
+          description: Made from the labels when empty.
+    OutcomesReport:
+      type: object
+      required: [window, since, until, total, services]
+      properties:
+        window:
+          type: string
+        since:
+          type: string
+          format: date-time
+        until:
+          type: string
+          format: date-time
+        total:
+          $ref: "#/components/schemas/OutcomesRow"
+        services:
+          type: [array, "null"]
+          items:
+            $ref: "#/components/schemas/OutcomesRow"
+        people:
+          type: array
+          description: Each person's on-call load, most pages first.
+          items:
+            type: object
+            properties:
+              person: {type: string}
+              pages: {type: integer}
+              night_pages: {type: integer}
+              acknowledged: {type: integer}
+              hours_on_call: {type: number}
+    OutcomesRow:
+      type: object
+      required: [incidents, open, by_severity, acknowledged, resolved, mtta_seconds, mttr_seconds]
+      properties:
+        service:
+          type: string
+        incidents:
+          type: integer
+        open:
+          type: integer
+        by_severity:
+          type: [object, "null"]
+          additionalProperties:
+            type: integer
+        acknowledged:
+          type: integer
+        resolved:
+          type: integer
+        mtta_seconds:
+          type: [number, "null"]
+          description: Mean seconds to acknowledge; null when no incident has it.
+        mttr_seconds:
+          type: [number, "null"]
+          description: Mean seconds to restore; null when no incident has it.
+        ttr_trend:
+          type: string
+          enum: [improving, steady, worsening]
+        pages: {type: integer, description: The chains' pages started in the window.}
+        night_pages: {type: integer, description: Those started between 22:00 and 07:00 in the desk's zone.}
+        unanswered_pages: {type: integer, description: Those nobody acknowledged.}

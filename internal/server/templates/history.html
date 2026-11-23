@@ -1,0 +1,218 @@
+{{define "title"}}Incidents · dispatch{{end}}
+{{define "style"}}
+.tabs { display:flex; flex-wrap:wrap; gap:2px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+.tabs a, .tabs .saved { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 11px; margin-bottom:-1px; border-bottom:2px solid transparent; color:var(--dim); font-weight:600; font-size:13.5px; }
+.tabs a:hover { color:var(--ink); }
+.tabs a.on { color:var(--ink); border-bottom-color:var(--accent); }
+.tabs .saved { padding:0; gap:0; }
+.tabs .saved a { padding-right:4px; }
+.tabs .saved button { min-height:28px; min-width:28px; padding:0; border:0; background:transparent; color:var(--faint); font-size:15px; }
+.tabs .saved button:hover { color:var(--crit-ink); background:transparent; }
+.tabs .save { margin-left:auto; align-self:center; }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+.bar .q { position:relative; flex:1 1 280px; min-width:0; }
+.bar .q input { padding-right:34px; }
+.bar .q kbd { z-index:2; position:absolute; right:9px; top:50%; transform:translateY(-50%); cursor:text; }
+.bar select { width:auto; flex:0 0 auto; }
+.bar .chip { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:0 10px; border-radius:999px; background:var(--sel); color:var(--ink); font-size:12.5px; font-weight:600; }
+.count { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; color:var(--dim); font-size:13px; margin:0 0 8px; }
+.count b { color:var(--ink); font-variant-numeric:tabular-nums; }
+.count a { color:var(--ink-2); font-weight:560; }
+#incidents { table-layout:auto; }
+#incidents td { font-size:13.5px; }
+#incidents .c-id { font-family:var(--mono); font-size:12.5px; color:var(--dim); white-space:nowrap; }
+#incidents .c-ttl { width:42%; min-width:220px; line-height:1.4; }
+#incidents .c-ttl a.t { color:var(--ink); font-weight:600; }
+#incidents .c-ttl a.t:hover { text-decoration:underline; }
+#incidents .c-svc { font-family:var(--mono); font-size:12.5px; color:var(--ink-2); white-space:nowrap; }
+#incidents .c-own { white-space:nowrap; }
+#incidents .c-own span.who { display:inline-flex; align-items:center; gap:7px; }
+#incidents .c-al .u { display:none; }
+#incidents .c-tta, #incidents .c-ttr, #incidents .c-al { white-space:nowrap; font-variant-numeric:tabular-nums; }
+#incidents .c-open { color:var(--ink-2); min-width:84px; font-variant-numeric:tabular-nums; }
+#incidents .c-ttr time { color:var(--crit-ink); font-weight:600; }
+#incidents .c-al .f { color:var(--crit-ink); }
+.times { display:inline-flex; align-items:center; height:20px; padding:0 7px; margin-left:4px; border-radius:999px; background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line-2); font-size:12px; font-weight:650; color:var(--ink-2); white-space:nowrap; vertical-align:1px; }
+.times:hover { color:var(--ink); box-shadow:inset 0 0 0 1px var(--dim); }
+.dash { color:var(--faint); }
+.cols { display:flex; gap:12px; align-items:flex-start; }
+.col { flex:1 1 0; min-width:0; }
+.col.empty-col { flex:0 0 150px; }
+.col.folded { flex:0 0 170px; }
+.col h2 { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:650; color:var(--ink-2); margin:0 0 8px; padding:0 2px; }
+.col h2 .n { color:var(--dim); font-weight:600; font-variant-numeric:tabular-nums; }
+.col .stack { display:flex; flex-direction:column; gap:6px; }
+.card { display:block; min-width:0; overflow-wrap:anywhere; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 11px; color:var(--ink); }
+.card:hover, .card:focus { border-color:var(--line-2); background:var(--hover); outline:none; }
+.card:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.card .top { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:var(--dim); }
+.card .top .id { font-family:var(--mono); }
+.card .t { font-size:13px; font-weight:600; line-height:1.35; margin:4px 0 6px; }
+.card .m { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; font-size:12px; color:var(--dim); }
+.card .m .mono { font-size:12px; white-space:nowrap; }
+.card .m .own { margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:var(--ink-2); font-weight:600; }
+.card .m .own .av { width:22px; height:22px; font-size:11px; }
+.col .none { color:var(--faint); font-size:12.5px; padding:6px 2px; }
+.col .fold { display:flex; flex-direction:column; gap:4px; padding:12px; border:1px dashed var(--line-2); border-radius:9px; font-size:13px; color:var(--dim); }
+.col .fold b { font-size:20px; color:var(--ink); font-variant-numeric:tabular-nums; }
+.col .fold a { color:var(--ink-2); font-weight:600; }
+@media (max-width:1500px) { #incidents .c-own .nm { display:none; } }
+@media (min-width:861px) and (max-width:1440px) { #incidents .c-tta { display:none; } #incidents .c-sev .sev .w { display:none; } #incidents th, #incidents td { padding-left:8px; padding-right:8px; } }
+@media (max-width:1180px) { }
+@media (max-width:1279px) {
+  #incidents .c-ttl a.t { display:inline-block; min-height:44px; padding:10px 0; }
+  #incidents, #incidents tbody { display:block; }
+  #incidents thead { display:none; }
+  #incidents tr { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:12px 2px; border-top:1px solid var(--line); }
+  #incidents tbody tr:first-child { border-top:0; }
+  #incidents td { display:block; padding:0; border:0; font-size:13px; }
+  #incidents .c-sev { order:1; } #incidents .c-id { order:2; } #incidents .c-st { order:3; margin-left:auto; }
+  #incidents .c-ttl { order:4; flex:1 1 100%; min-width:0; max-width:none; font-size:14.5px; }
+  #incidents .c-ttl a.t { display:block; padding:10px 0; }
+  #incidents .c-svc { order:5; min-width:0; }
+  #incidents .c-own { order:6; } #incidents .c-open { order:7; color:var(--dim); } #incidents .c-ttr { order:8; color:var(--dim); } #incidents .c-al { order:9; color:var(--dim); } #incidents .c-al .u { display:inline; }
+  #incidents .c-tta { display:none; }
+  #incidents .c-ttr:not(:empty)::before { content:"restored in "; }
+  #incidents .c-ttr.live::before { content:"open "; }
+  #incidents .c-own .av { width:24px; height:24px; font-size:12px; }
+  #incidents .c-own .nm { display:inline; }
+  .times { height:44px; padding:0 12px; margin:0; }
+}
+@media (max-width:860px) {
+  .tabs a, .tabs .saved { min-height:44px; min-width:44px; justify-content:center; white-space:nowrap; }
+  .tabs .save, .ph .seg > a { min-height:44px; }
+  #list > p.hint { display:none; }
+  .col .fold a { display:flex; align-items:center; min-height:44px; }
+  .tabs .saved button { min-height:44px; min-width:36px; }
+  .tabs .save { margin-left:8px; }
+  .bar select { flex:1 1 40%; }
+  .bar .q kbd { display:none; }
+  .bar .seg { flex:1 1 100%; } .bar .seg > * { flex:1; justify-content:center; min-height:44px; }
+  .cols { flex-direction:column; align-items:stretch; } .col, .col.empty-col, .col.folded { flex:none; width:100%; }
+  .card { padding:12px; }
+  .card .m .own .av { width:24px; height:24px; font-size:12px; }
+}
+{{end}}
+{{define "content"}}
+<main class="page wide">
+  <div class="ph">
+    <div><h1>Incidents</h1><p class="lede">Every incident the desk has held. Pick a view, search, sort any column.</p></div>
+    <div class="tools">
+      <nav class="seg" aria-label="Layout">
+        <a href="{{.ListHref}}" class="{{if eq .Layout "list"}}on{{end}}" data-cmd="Show as a list" data-group="View">List</a>
+        <a href="{{.BoardHref}}" class="{{if eq .Layout "board"}}on{{end}}" data-cmd="Show as a board" data-group="View">Board</a>
+      </nav>
+    </div>
+  </div>
+
+  <nav class="tabs" aria-label="Views" id="views">
+    {{range .Tabs}}<a href="{{.Href}}" class="{{if .On}}on{{end}}" data-cmd="View: {{.Label}}" data-group="View">{{.Label}}</a>{{end}}
+    <span id="saved-views" style="display:contents"></span>
+    <button type="button" class="sm quiet save" id="save-view" data-cmd="Save this view" data-group="View">Save view</button>
+  </nav>
+
+  <form method="get" action="/history" class="bar" role="search" data-event="history.search">
+    {{if .View}}<input type="hidden" name="view" value="{{.View}}">{{end}}
+    {{if eq .Layout "board"}}<input type="hidden" name="layout" value="board">{{end}}
+    {{if not .Fold}}<input type="hidden" name="fold" value="0">{{end}}
+    {{if .Service}}<input type="hidden" name="service" value="{{.Service}}">{{end}}
+    <label class="q"><input type="search" name="q" value="{{.Query}}" placeholder="Search titles, services, owners, or #number" aria-label="Search incidents" data-search><kbd>/</kbd></label>
+    <select name="severity" aria-label="Severity" onchange="this.form.requestSubmit()"><option value="">Any severity</option>{{range .Severities}}<option value="{{.}}"{{if eq (print .) $.Severity}} selected{{end}}>{{cap .}}</option>{{end}}</select>
+    <select name="state" aria-label="State" onchange="this.form.requestSubmit()"><option value="">Any state</option>{{range .States}}<option value="{{.}}"{{if eq (print .) $.State}} selected{{end}}>{{cap .}}</option>{{end}}</select>
+    {{if .Service}}<a class="chip" href="{{.NoService}}" aria-label="Stop filtering by {{.Service}}">service <span class="mono">{{.Service}}</span> &times;</a>{{end}}
+  </form>
+
+  <div id="list" data-live>
+    <p class="count"><span><b>{{len .Rows}}</b> row{{if ne (len .Rows) 1}}s{{end}}{{if ne (len .Rows) .Total}} for <b>{{.Total}}</b> incidents{{end}}{{if .Capped}}, the newest {{.Total}}{{end}}</span>
+      {{if .Fold}}<span>Repeats of a title on a service in one day fold into one row. <a href="{{.AllHref}}">Show every one</a></span>{{else}}<span>Every incident on its own row. <a href="{{.FoldHref}}">Fold repeats</a></span>{{end}}
+      {{if .Filtered}}<a href="/history{{if .View}}?view={{.View}}{{end}}">Clear the search</a>{{end}}</p>
+    {{if not .Rows}}
+    <div class="panel"><div class="empty"><b>Nothing here</b>{{if .Filtered}}Try fewer words, or clear the search.{{else if eq .View "mine"}}You hold no incidents.{{else if eq .View "postmortem"}}Every incident a person worked has its postmortem.{{else}}No incident fits this view.{{end}}</div></div>
+    {{else if eq .Layout "board"}}
+    <div class="cols">
+      {{range .Board}}
+      <section class="col{{if eq .Phase "resolved"}} folded{{else if not .Rows}} empty-col{{end}}" aria-label="{{cap .Phase}}">
+        <h2><span class="st {{.Phase}}">{{cap .Phase}}</span><span class="n">{{.N}}</span></h2>
+        {{if eq .Phase "resolved"}}
+        <div class="fold"><b>{{.N}}</b>restored in this view{{if .N}}<a href="{{$.ResolvedHref}}">See them in the list</a>{{end}}</div>
+        {{else}}
+        <div class="stack">
+          {{range .Rows}}{{$i := .I}}
+          <a class="card" href="/incidents/{{$i.ID}}" data-row tabindex="0">
+            <div class="top"><span class="sev {{$i.Severity}}">{{cap $i.Severity}}</span><span class="id">#{{$i.ID}}</span>{{if gt .Count 1}}<span>&times;{{.Count}} {{.Day}}</span>{{end}}</div>
+            <div class="t">{{whole (named $i.Title)}}</div>
+            <div class="m"><span class="mono">{{$i.Service}}</span><span><time data-since="{{iso $i.OpenedAt}}">{{dur .Age}}</time></span>{{if $i.FiringAlerts}}<span class="firing">{{$i.FiringAlerts}} of {{$i.Alerts}} firing</span>{{end}}
+              <span class="own">{{if $i.Owner}}<span class="av">{{initials $i.Owner}}</span>{{who $i.Owner}}{{else if $i.Settling}}<span class="dim">nobody needed</span>{{else}}<span class="av none">?</span><span class="nobody">nobody</span>{{end}}</span></div>
+          </a>
+          {{else}}<div class="none">None</div>{{end}}
+        </div>
+        {{end}}
+      </section>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="panel">
+      <table class="tbl" id="incidents">
+        <thead><tr>
+          <th data-sort>Severity</th><th data-sort class="n">#</th><th data-sort>Title</th><th data-sort>Service</th><th data-sort>State</th><th data-sort>Owner</th>
+          <th data-sort class="c-open">Opened</th><th data-sort class="n c-tta" title="Time to acknowledge">To ack</th><th data-sort class="n" title="Time to restore">To restore</th><th data-sort class="n" title="Firing of total while any fire, else the total">Alerts</th>
+        </tr></thead>
+        <tbody>
+        {{range .Rows}}{{$i := .I}}
+          <tr data-row data-href="/incidents/{{$i.ID}}" tabindex="0">
+            <td class="c-sev" data-v="{{$i.Severity.Rank}}"><span class="sev {{$i.Severity}}" title="{{cap $i.Severity}}"><span class="w">{{cap $i.Severity}}</span></span></td>
+            <td class="c-id n" data-v="{{$i.ID}}">#{{$i.ID}}</td>
+            <td class="c-ttl"><a class="t" href="/incidents/{{$i.ID}}" tabindex="-1">{{named $i.Title}}</a>{{if gt .Count 1}}<a class="times" href="{{.Repeats}}" title="Every one of them">&times;{{.Count}} {{.Day}}</a>{{end}}</td>
+            <td class="c-svc">{{$i.Service}}</td>
+            <td class="c-st" data-v="{{$i.Phase}}"><span class="st {{$i.Phase}}">{{cap $i.Phase}}</span></td>
+            <td class="c-own" data-v="{{if $i.Owner}}{{who $i.Owner}}{{else}}~{{end}}">{{if $i.Owner}}<span class="who" title="{{who $i.Owner}}"><span class="av">{{initials $i.Owner}}</span><span class="nm">{{who $i.Owner}}</span></span>{{else if $i.ResolvedAt}}<span class="dash">nobody</span>{{else}}<span class="nobody">nobody</span>{{end}}</td>
+            <td class="c-open" data-v="{{$i.OpenedAt.Unix}}">{{clock $i.OpenedAt}}</td>
+            <td class="c-tta n" data-v="{{.TTAv}}">{{if .TTA}}{{.TTA}}{{else}}<span class="dash">no ack</span>{{end}}</td>
+            <td class="c-ttr n{{if not $i.ResolvedAt}} live{{end}}" data-v="{{.TTRv}}">{{if $i.ResolvedAt}}{{.TTR}}{{else}}<time data-since="{{iso $i.OpenedAt}}">{{dur .Age}}</time>{{end}}</td>
+            <td class="c-al n" data-v="{{$i.Alerts}}">{{if $i.FiringAlerts}}<span class="f" title="{{$i.FiringAlerts}} of {{$i.Alerts}} alerts firing">{{$i.FiringAlerts}} of {{$i.Alerts}}<span class="u"> firing</span></span>{{else}}{{$i.Alerts}}<span class="u"> alert{{if ne $i.Alerts 1}}s{{end}}</span>{{end}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    <p class="hint" style="margin-top:10px"><kbd>j</kbd> <kbd>k</kbd> move, <kbd>Enter</kbd> opens, <kbd>/</kbd> searches. Click a column to sort it.</p>
+    {{end}}
+  </div>
+</main>
+<script>
+(function () {
+  // Saved views live in this browser: a name and the query they keep.
+  var KEY = 'dispatch.views';
+  function read() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (_) { return []; } }
+  function write(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (_) {} }
+  function draw() {
+    var box = document.getElementById('saved-views');
+    if (!box) return;
+    box.textContent = '';
+    read().forEach(function (v, n) {
+      var wrap = document.createElement('span'); wrap.className = 'saved';
+      var a = document.createElement('a'); a.href = '/history' + v.q; a.textContent = v.name;
+      if (v.q === location.search) { a.className = 'on'; document.querySelectorAll('#views > a.on').forEach(function (x) { x.classList.remove('on'); }); }
+      var x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Forget the view ' + v.name);
+      x.addEventListener('click', function () { var all = read(); all.splice(n, 1); write(all); draw(); });
+      wrap.appendChild(a); wrap.appendChild(x); box.appendChild(wrap);
+    });
+  }
+  var save = document.getElementById('save-view');
+  if (save) save.addEventListener('click', function () {
+    var name = (prompt('Name this view') || '').trim();
+    if (!name) return;
+    var all = read().filter(function (v) { return v.name !== name; });
+    all.push({ name: name, q: location.search });
+    write(all); draw();
+  });
+  draw();
+  // A click anywhere on a row opens it, as Enter does.
+  document.addEventListener('click', function (e) {
+    var tr = e.target.closest && e.target.closest('#incidents tr[data-href]');
+    if (!tr || e.target.closest('a,button') || (window.getSelection && String(window.getSelection()))) return;
+    location.href = tr.getAttribute('data-href');
+  });
+})();
+</script>
+{{end}}

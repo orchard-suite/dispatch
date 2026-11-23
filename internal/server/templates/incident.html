@@ -1,0 +1,476 @@
+{{define "title"}}{{if eq .Tab "postmortem"}}Postmortem {{end}}#{{.I.ID}} {{.I.Title}} · dispatch{{end}}
+{{define "style"}}
+.inc { display:grid; grid-template-columns:minmax(0, 1fr) var(--inc-props, 356px); min-height:100vh; }
+.inc .doc { min-width:0; background:var(--panel); padding:16px 40px 72px; }
+.inc .doc > * { max-width:940px; margin-left:auto; margin-right:auto; }
+.inc .crumbs { margin-bottom:10px; }
+.idline { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px; color:var(--dim); }
+.idline b { color:var(--ink); font-weight:640; font-variant-numeric:tabular-nums; }
+.inc h1 { font-size:24px; line-height:1.3; font-weight:700; letter-spacing:-.018em; margin:10px 0 0; overflow-wrap:break-word; max-width:36em; }
+.tabs { display:flex; align-items:center; gap:2px 4px; flex-wrap:wrap; border-bottom:1px solid var(--line); margin-top:18px; position:sticky; top:0; z-index:3; background:var(--panel); }
+.tabs > a { display:inline-flex; align-items:center; gap:7px; min-height:42px; padding:0 12px; color:var(--dim); font-weight:620; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tabs > a:hover { color:var(--ink); }
+.tabs > a.on { color:var(--ink); border-bottom-color:var(--ink); }
+.tabs .due { font-size:12px; font-weight:650; color:var(--warn-ink); background:var(--warn-w); border-radius:999px; padding:1px 7px; }
+.tabs .sp { flex:1; }
+.summary { margin-top:16px; padding:12px 16px 14px; border-radius:10px; background:var(--bg); border:1px solid var(--line); }
+.summary .sh { margin-bottom:4px; }
+.summary .md { font-size:15px; line-height:1.6; max-width:72ch; }
+.summary .md p, .summary .md ul, .summary .md ol { margin:0 0 6px; } .summary .md > :last-child { margin-bottom:0; }
+.summary .differ { margin-top:6px; font-size:13px; color:var(--ink-2); max-width:72ch; overflow-wrap:break-word; }
+.summary .se { display:none; }
+.summary.empty { background:none; border:0; padding:0; }
+.summary.empty .sh h2 { display:none; }
+.summary.empty .sh .tools { margin-left:0; }
+.summary.empty.editing { padding:12px 16px 14px; border:1px solid var(--line); background:var(--bg); }
+.summary.editing .se { display:block; }
+.summary.editing .md, .summary.editing .differ, .summary.editing .sh .tools { display:none; }
+.summary .se textarea { margin:4px 0 8px; font-size:14.5px; min-height:110px; }
+.linkish { min-height:28px; padding:0 6px; border:0; background:transparent; color:var(--accent-ink); font-weight:620; font-size:12.5px; }
+.linkish:hover { background:var(--accent-w); }
+.linkish kbd { opacity:1; }
+.phase { list-style:none; margin:22px 0 0; padding:0; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; }
+.phase li { position:relative; padding-top:10px; font-size:13px; font-weight:560; color:var(--faint); min-width:0; overflow-wrap:anywhere; }
+.phase li::before { content:""; position:absolute; left:0; right:0; top:0; height:4px; border-radius:2px; background:var(--line); }
+.phase li.done { color:var(--ink-2); } .phase li.done::before { background:var(--ink-2); }
+.phase li.now { color:var(--ink); font-weight:700; } .phase li.now::before { background:var(--accent); }
+.phase li.skip { color:var(--faint); font-weight:560; } .phase li.skip::before { background:transparent; box-shadow:inset 0 0 0 1px var(--line-2); }
+.phase li.skip small { font-style:italic; }
+.phase small { display:block; font:12px/1.5 var(--mono); color:var(--dim); font-weight:400; }
+.next { display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center; margin-top:16px; padding:12px 14px 12px 16px; border-radius:10px; background:var(--accent-w); border:1px solid color-mix(in srgb, var(--accent) 28%, transparent); }
+.next.hot { background:var(--crit-w); border-color:color-mix(in srgb, var(--crit) 38%, transparent); }
+.next .say { flex:1 1 320px; min-width:0; }
+.next .lbl { font-size:12px; font-weight:720; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink); }
+.next.hot .lbl { color:var(--crit-ink); }
+.next p { margin-top:3px; font-size:14.5px; font-weight:560; line-height:1.45; }
+.next .go { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.next .go form { display:contents; }
+.next .also { display:contents; }
+.inc .sec { margin-top:30px; }
+.inc .sh h2 { font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
+{{template "ribbon-style"}}
+.sh .rib-legend { margin-left:auto; }
+.act-add { margin-top:10px; }
+.act-add[hidden] { display:none; }
+.facts { display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:6px; font-size:13px; color:var(--dim); }
+.facts b { color:var(--ink); font-weight:640; font-variant-numeric:tabular-nums; }
+.compose { margin:4px 0 10px; border:1px solid var(--line-2); border-radius:10px; background:var(--bg); }
+.compose:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-w); }
+.compose textarea { display:block; border:0; background:transparent; box-shadow:none !important; min-height:44px; padding:11px 12px 4px; resize:none; }
+.compose:focus-within textarea { min-height:104px; resize:vertical; }
+.compose .bar { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; padding:2px 8px 8px 12px; }
+.compose .bar .sp { flex:1; }
+.compose label.check { font-size:13px; min-height:30px; }
+.day { display:flex; align-items:baseline; gap:10px; margin:22px 0 4px; font-size:13px; font-weight:700; }
+.day span { font-weight:400; font-size:12px; color:var(--dim); }
+.ev { display:grid; grid-template-columns:44px 20px minmax(0, 1fr); gap:0 10px; padding:6px 0; align-items:start; }
+.ev .tm { font:12px/1.6 var(--mono); color:var(--dim); text-align:right; }
+.ev .ic { width:12px; height:12px; margin:4px 4px 0; border-radius:50%; background:var(--panel); box-shadow:inset 0 0 0 2px var(--dim); }
+.ev.k-opened .ic, .ev.k-reopened .ic { background:var(--crit-w); box-shadow:inset 0 0 0 3px var(--crit); }
+.ev.k-acknowledged .ic { background:var(--warn); box-shadow:none; }
+.ev.k-mitigated .ic { background:var(--info); box-shadow:none; }
+.ev.k-resolved .ic { background:var(--ok); box-shadow:none; }
+.ev.k-note .ic { background:var(--accent); box-shadow:none; }
+.ev.k-assigned .ic { background:var(--ink-2); box-shadow:none; }
+.ev.run .ic { border-radius:3px; background:var(--crit-w); box-shadow:inset 0 0 0 2px var(--crit); }
+.ev.run.calm .ic { background:var(--cell); box-shadow:inset 0 0 0 2px var(--dim); }
+.ev .x { min-width:0; overflow-wrap:break-word; line-height:1.55; }
+.ev.run .x { color:var(--ink-2); }
+.ev .who { font-weight:650; color:var(--ink); }
+.ev .by { color:var(--dim); }
+.ev .pub { font-size:12px; font-weight:640; color:var(--info-ink); white-space:nowrap; }
+.ev .an { font-weight:640; color:var(--ink); overflow-wrap:break-word; }
+.ev .sub { display:block; font:12px/1.5 var(--mono); color:var(--dim); }
+.notebody { margin-top:6px; padding:10px 14px; border-left:2px solid var(--accent); background:var(--bg); border-radius:0 8px 8px 0; font-size:13.5px; line-height:1.6; }
+.notebody p, .notebody ul, .notebody ol { margin:0 0 8px; } .notebody > :last-child { margin-bottom:0; }
+.gap { display:grid; grid-template-columns:44px 20px minmax(0, 1fr); gap:0 10px; align-items:center; font-size:12px; color:var(--dim); }
+.gap .ln { justify-self:center; height:24px; border-left:1px dashed var(--line-2); }
+#tl[data-show=highlights] .ev:not(.hi), #tl[data-show=highlights] .gap, #tl[data-show=highlights] .day:not(.hi) { display:none; }
+.ag { padding:12px 16px; }
+.ag-top { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; }
+.ag-top code { font-weight:650; }
+.ag .sum { color:var(--ink-2); margin-top:3px; }
+.labels { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+.labels code { font-size:12px; background:var(--sunk); border:1px solid var(--line); border-radius:5px; padding:0 6px; line-height:20px; color:var(--ink-2); }
+.chg-row { padding:10px 16px; }
+.chg-row .m { display:flex; flex-wrap:wrap; gap:2px 12px; font-size:12.5px; color:var(--dim); margin-top:2px; }
+.asst { padding:12px 16px; }
+.asst .m { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12.5px; color:var(--dim); }
+.asst pre { white-space:pre-wrap; max-height:220px; overflow:auto; font-size:12.5px; background:var(--sunk); border-radius:8px; padding:8px; }
+.asst details > summary { cursor:pointer; min-height:32px; display:flex; align-items:center; font-size:13px; font-weight:600; color:var(--accent-ink); }
+.pm-doc { margin-top:18px; }
+.pm-doc .md { font-size:14.5px; max-width:70ch; }
+.editor { margin-top:16px; }
+.editor > summary { list-style:none; display:inline-flex; align-items:center; gap:8px; cursor:pointer; min-height:34px; padding:0 12px; border:1px solid var(--line-2); border-radius:8px; font-size:13px; font-weight:620; }
+.editor > summary::-webkit-details-marker { display:none; }
+.editor[open] > summary { margin-bottom:10px; }
+.editor .panel { overflow:hidden; }
+.editor .panel:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-w); }
+.editor .bar { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:8px 10px 8px 14px; border-bottom:1px solid var(--line); font-size:13px; color:var(--dim); }
+.editor .bar .sp { flex:1; }
+.editor textarea { border:0; border-radius:0; box-shadow:none !important; min-height:480px; font-family:var(--mono); font-size:13.5px; line-height:1.6; padding:14px 16px; }
+.act { display:flex; gap:10px; align-items:flex-start; padding:10px 16px; }
+.act + .act { border-top:1px solid var(--line); }
+.act form { margin:0; }
+.act button.box { width:24px; height:24px; min-height:24px; padding:0; border-radius:6px; font-size:13px; }
+.act .txt { flex:1; min-width:0; overflow-wrap:break-word; }
+.act.done .txt > span:first-child { text-decoration:line-through; color:var(--dim); }
+.addact { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.addact input { flex:1 1 260px; }
+.addact select { flex:0 1 190px; width:auto; }
+.pw { position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto; border-left:1px solid var(--line); background:var(--bg); }
+.props { padding:14px 16px 28px; }
+.pw > .dbtn { display:none; }
+.props h4 { margin:18px 0 4px; font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--faint); }
+.props h4:first-child { margin-top:2px; }
+.kv { display:grid; grid-template-columns:112px minmax(0, 1fr); gap:2px 10px; align-items:start; min-height:34px; padding:2px 0; font-size:13px; }
+.kv .k { color:var(--dim); padding-top:6px; white-space:nowrap; }
+.kv .v { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; min-width:0; min-height:30px; overflow-wrap:break-word; font-weight:560; }
+.kv .v .nm { min-width:0; }
+.kv .v .acts { display:flex; gap:2px; margin-left:auto; }
+.kv .v.own .nm { flex:0 1 auto; overflow-wrap:normal; }
+.kv .v.own .acts { flex:none; }
+button.take { min-height:28px; padding:0 8px; border-radius:999px; border:1.5px dashed var(--crit); background:transparent; color:var(--crit-ink); font-size:12px; font-weight:650; }
+button.take:hover { background:var(--crit-w); }
+.kv .v.own .acts button { padding:0 7px; }
+.kv .v.gk { flex-direction:column; align-items:flex-start; gap:0; }
+.kv.wide { grid-template-columns:minmax(0, 1fr); }
+.kv.wide .k { padding-top:2px; }
+.kv .v .nm, .pstrip > span { overflow-wrap:normal; }
+.pstrip > span { white-space:nowrap; }
+.pstrip > span.mono { white-space:normal; }
+.kv .v form { margin:0; }
+.kv .seg > button { min-height:28px; padding:0 8px; }
+.kv .mono { font-size:12px; overflow-wrap:break-word; }
+.kv .num { font-variant-numeric:tabular-nums; }
+.mini { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:0 8px; padding:6px 8px; margin:0 -8px; border-radius:7px; font-size:13px; line-height:1.4; }
+.mini:hover { background:var(--hover); }
+.mini .num { font:600 12px/1.6 var(--mono); color:var(--dim); }
+.mini small { display:block; color:var(--dim); font-size:12px; }
+.props .more { margin-top:20px; justify-content:flex-start; color:var(--ink-2); }
+.mlist { display:flex; flex-direction:column; gap:2px; }
+.mlist h3 { margin:14px 0 4px; font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--faint); }
+.mlist h3:first-child { margin-top:0; }
+.mlist > button, .mlist form > button { justify-content:flex-start; width:100%; }
+.mlist form { display:flex; gap:8px; align-items:center; }
+.mlist form select { flex:1; }
+.pstrip, .pbar { display:none; }
+.inc .av { font-size:12px; }
+@media (max-width:1100px) {
+  .inc { grid-template-columns:minmax(0, 1fr); }
+  .pw { position:static; height:auto; overflow:visible; border-left:0; border-top:1px solid var(--line); }
+  .props { padding:16px 40px 32px; }
+  .pstrip { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:12px; font-size:13px; color:var(--ink-2); }
+  .pstrip > span { display:inline-flex; align-items:center; gap:6px; min-width:0; overflow-wrap:break-word; }
+}
+@media (max-width:860px) {
+  .inc { padding-bottom:120px; }
+  .pw > .dbtn { display:flex; justify-content:space-between; width:100%; min-height:48px; padding:0 16px; border:0; border-radius:0; background:transparent; font-size:14px; }
+  .pw > .dbtn::after { content:"Show"; color:var(--accent-ink); font-weight:600; }
+  .pw.open > .dbtn::after { content:"Hide"; }
+  .pw:not(.open) > .props { display:none; }
+  .summary { padding:10px 12px 12px; }
+  .inc .doc { padding:10px 16px 24px; }
+  .props { padding:4px 16px 24px; }
+  .inc h1 { font-size:19px; }
+  .inc kbd { display:none; }
+  .inc .crumbs a, .kv .v a.link { display:inline-flex; align-items:center; min-height:44px; min-width:44px; }
+  .tabs { top:52px; }
+  .tabs > a { min-height:44px; }
+  .inc .sh .seg > button { min-height:44px; }
+  .inc button.sm, .inc .btn.sm, .linkish { min-height:44px; min-width:44px; }
+  .inc button.take { min-height:44px; padding:0 12px; }
+  .phase { grid-template-columns:repeat(4, auto); justify-content:space-between; gap:4px 8px; }
+  .phase li { font-size:12px; overflow-wrap:normal; }
+  .next .go { flex-direction:column; align-items:stretch; width:100%; }
+  .next .also { display:flex; gap:6px; }
+  .next .also form { display:flex; flex:1; }
+  .next .also button { flex:1; }
+  .phase small { font-size:12px; }
+  .rib .ticks span:nth-child(even) { display:none; }
+  .sh .rib-legend { margin-left:0; width:100%; }
+  .ev, .gap { grid-template-columns:40px 20px minmax(0, 1fr); gap:0 8px; }
+  .compose label.check { min-height:44px; }
+  .kv { min-height:44px; }
+  .kv .k { padding-top:12px; }
+  .kv .v { min-height:44px; }
+  .kv .seg > button { min-height:44px; }
+  .mini { min-height:44px; }
+  .act button.box { width:44px; height:44px; min-height:44px; }
+  .asst details > summary, .editor > summary { min-height:44px; }
+  .pbar { display:flex; gap:10px; align-items:center; position:fixed; z-index:5; left:0; right:0; bottom:calc(57px + env(safe-area-inset-bottom)); padding:8px 12px 8px 16px; background:var(--panel); border-top:1px solid var(--line); box-shadow:0 -8px 18px -14px rgba(0,0,0,.4); }
+  .pbar.hot { box-shadow:inset 3px 0 0 var(--crit), 0 -8px 18px -14px rgba(0,0,0,.4); }
+  .pbar p { flex:1; min-width:0; font-size:13.5px; font-weight:580; line-height:1.3; }
+  .pbar form { margin:0; }
+  .pbar .btn, .pbar button { min-height:44px; }
+}
+{{end}}
+
+{{define "inc-entry"}}{{$e := .Entry}}
+<div class="ev{{if .Hi}} hi{{end}} {{if $e.Run}}run{{if not $e.Run.Fired}} calm{{end}}{{else}}k-{{$e.Event.Kind}}{{end}}">
+  <span class="tm">{{if $e.Run}}{{$e.Run.From.UTC.Format "15:04"}}{{else}}{{$e.Event.At.UTC.Format "15:04"}}{{end}}</span><span class="ic" aria-hidden="true"></span>
+  <div class="x">{{if $e.Run}}{{with $e.Run}}<b class="an">{{breakable .Alert}}</b> {{if eq .Changes 1}}{{if .Fired}}fired{{else if .After}}cleared {{dur .After}} after it opened{{else}}cleared{{end}}{{else if and (eq .Fired 1) (eq .Cleared 1)}}fired and cleared {{within .Span}}{{else if not .Cleared}}fired {{times .Fired}} {{within .Span}}{{else if not .Fired}}cleared {{times .Cleared}} {{within .Span}}{{else}}flapped {{.Changes}} times over {{dur .Span}}: fired {{.Fired}}, cleared {{.Cleared}}{{end}}{{if gt .Changes 1}}<span class="sub">{{.From.UTC.Format "15:04"}} to {{.To.UTC.Format "15:04"}}</span>{{end}}{{end}}
+  {{else if .IsSummary}}{{with $e.Event}}<span class="who">{{who .Actor}}</span> wrote the summary{{if .Public}} <span class="pub">on the status page</span>{{end}} <a class="link" href="#inc-summary">Read it above</a>{{end}}
+  {{else if .Written}}{{with $e.Event}}<span class="who">{{who .Actor}}</span> wrote{{if .Public}} <span class="pub">on the status page</span>{{end}}<div class="notebody md">{{markdown (named .Text)}}</div>{{end}}
+  {{else}}{{with $e.Event}}{{named .Text}}{{with byline .}} <span class="by">by {{who .}}</span>{{end}}{{if .Public}} <span class="pub">on the status page</span>{{end}}{{end}}{{end}}</div>
+</div>{{end}}
+
+{{define "content"}}
+{{$id := .I.ID}}{{$over := eq .Tab "overview"}}
+<main class="inc" data-tab="{{.Tab}}">
+<div class="doc">
+  <nav class="crumbs" aria-label="Breadcrumbs"><a href="/history">Incidents</a><span aria-hidden="true">/</span><span>#{{$id}}</span></nav>
+  <header id="inc-head" data-live>
+    <div class="idline">
+      <span class="sev {{.I.Severity}}">{{cap .I.Severity}}</span>
+      <span class="st {{.I.Phase}}">{{cap .I.Phase}}</span>
+      {{if and .I.FiringAlerts (not .I.ResolvedAt)}}<span class="firing">{{.I.FiringAlerts}} firing</span>{{end}}
+      {{if .I.ResolvedAt}}<span>restored in <b>{{dur (.I.Age .Now)}}</b></span>{{else}}<span>open <b><time data-since="{{iso .I.OpenedAt}}">{{dur (.I.Age .Now)}}</time></b></span>{{end}}
+      {{if .I.Settling}}<span>closes itself in <b><time data-until="{{isop .I.ClosesAt}}">{{dur (.I.ClosesAt.Sub .Now)}}</time></b></span>{{end}}
+    </div>
+    <h1>{{whole .I.Title}}</h1>
+    <div class="pstrip" aria-label="Key properties">
+      <span>{{if .I.Owner}}<span class="av">{{initials .I.Owner}}</span>{{who .I.Owner}}{{else}}<span class="av none">?</span><span class="nobody">Nobody holds it</span>{{end}}</span>
+      <span class="mono">{{breakable .I.Service}}</span>
+      {{if .I.Alerts}}<span>{{if .I.FiringAlerts}}<span class="firing">{{.I.FiringAlerts}} of {{.I.Alerts}} firing</span>{{else}}{{.I.Alerts}} alert{{if ne .I.Alerts 1}}s{{end}}, none firing{{end}}</span>{{end}}
+    </div>
+  </header>
+
+  <section class="summary{{if not (or .Summary.Text .Differ)}} empty{{end}}" id="inc-summary" data-live aria-label="Summary">
+    <div class="sh"><h2>Summary</h2>{{with .Summary}}{{if .Text}}<span class="aside">{{if eq .From "summary"}}by {{who .By}}, {{clock .At}}{{else if eq .From "status update"}}from {{who .By}}'s status update, {{clock .At}}{{else if eq .From "description"}}from {{who .By}} when it opened{{else if eq .From "note"}}from {{who .By}}'s note, {{clock .At}}{{else}}from the alert, {{.By}}{{end}}</span>{{end}}{{end}}
+      <span class="tools"><button type="button" class="linkish" data-key="E" data-cmd="{{if .Summary.Text}}Edit the summary{{else}}Write a summary{{end}}" data-group="Work it" onclick="var s=this.closest('.summary');s.classList.add('editing');var t=s.querySelector('textarea');t.focus();t.setSelectionRange(t.value.length,t.value.length)">{{if .Summary.Text}}Edit{{else}}Write a summary{{end}} <kbd>E</kbd></button></span></div>
+    {{with .Summary.Text}}<div class="md">{{markdown (named .)}}</div>{{end}}
+    {{with .Differ}}<p class="differ">{{named .}}</p>{{end}}
+    <form class="se" method="post" action="/incidents/{{$id}}/summary" data-event="incident.summary" data-done="Summary saved.">
+      <textarea name="text" rows="4" required aria-label="Summary" placeholder="What is going on, in a few sentences">{{.Summary.Text}}</textarea>
+      <div class="actions"><button type="submit" class="primary sm">Save the summary</button><button type="button" class="quiet sm" onclick="this.closest('.summary').classList.remove('editing')">Cancel</button><span class="hint">It leads the page; the timeline keeps it as a note.</span></div>
+    </form>
+  </section>
+
+  <ol class="phase" id="inc-phase" data-live aria-label="Phase">{{range .Phases}}<li class="{{.Class}}{{if .Skipped}} skip{{end}}">{{.Name}}<small>{{with .At}}{{clock .}}{{else}}{{if .Skipped}}skipped{{else}}&nbsp;{{end}}{{end}}</small></li>{{end}}</ol>
+
+  <div class="next{{if .Next.Hot}} hot{{end}}" id="inc-next" data-live>
+    <div class="say"><div class="lbl">Next move</div><p>{{.Next.Say}}</p></div>
+    <div class="go">
+      {{if .I.ResolvedAt}}{{if $over}}<a class="btn primary" href="/incidents/{{$id}}/postmortem">{{if .Postmortem}}Open the postmortem{{else}}Write the postmortem{{end}} <kbd>P</kbd></a>{{else if .AddFirst}}<button type="button" class="primary" data-key="I" data-cmd="Add an action item" data-group="Work it" onclick="var f=document.getElementById('act-add');if(!f)return;f.hidden=false;var o=document.getElementById('act-open');if(o)o.hidden=true;f.elements.text.focus()">Add an action item <kbd>I</kbd></button>{{end}}{{end}}
+      {{range .Moves}}{{if .Primary}}<form method="post" action="/incidents/{{$id}}/state" data-event="incident.state" data-attr="{{.To}}" data-done="#{{$id}} is {{.To}} now."><input type="hidden" name="to" value="{{.To}}"><button type="submit" class="primary" data-key="{{.Key}}" data-cmd="{{.Label}}" data-group="Move #{{$id}}">{{.Label}} <kbd>{{.Key}}</kbd></button></form>{{end}}{{end}}
+      <span class="also">{{range .Moves}}{{if not .Primary}}<form method="post" action="/incidents/{{$id}}/state" data-event="incident.state" data-attr="{{.To}}" data-done="#{{$id}} is {{.To}} now."><input type="hidden" name="to" value="{{.To}}"><button type="submit" class="quiet" data-key="{{.Key}}" data-cmd="{{.Label}}" data-group="Move #{{$id}}">{{.Label}} <kbd>{{.Key}}</kbd></button></form>{{end}}{{end}}</span>
+    </div>
+  </div>
+
+  <nav class="tabs" aria-label="Incident">
+    <a href="/incidents/{{$id}}" class="{{if $over}}on{{end}}"{{if $over}} aria-current="page"{{else}} data-key="V" data-cmd="Overview" data-group="Go to"{{end}}>Overview{{if not $over}} <kbd>V</kbd>{{end}}</a>
+    <a href="/incidents/{{$id}}/postmortem" class="{{if not $over}}on{{end}}"{{if not $over}} aria-current="page"{{else}} data-key="P" data-cmd="Postmortem and action items" data-group="Go to"{{end}}>Postmortem{{if and .I.ResolvedAt (not .Postmortem)}} <span class="due">due</span>{{end}}{{if .Actions}} <span class="dim num">{{len .Actions}}</span>{{end}}{{if $over}} <kbd>P</kbd>{{end}}</a>
+  </nav>
+
+  {{if $over}}
+  <section class="sec" id="inc-strip" data-live aria-label="Alert strip">
+    <div class="sh"><h2>Alerts and moves</h2><span class="aside">{{clock .Strip.Ribbon.From}} to {{if .I.ResolvedAt}}{{clock .Strip.Ribbon.To}}{{else}}now{{end}}, UTC</span>
+      {{template "ribbon-legend" .Strip}}</div>
+    {{template "ribbon" .Strip}}
+    <div class="facts">
+      {{if .I.Alerts}}<span><b>{{.I.Alerts}}</b> alert{{if ne .I.Alerts 1}}s{{end}}{{if .I.FiringAlerts}}, <b>{{.I.FiringAlerts}}</b> firing{{else if .I.QuietSince}}, quiet <b>{{ago .I.QuietSince.UTC}}</b>{{end}}</span>{{end}}
+      <span>{{if .Changes}}<a class="link" href="#inc-changes"><b>{{len .Changes}}</b> change{{if ne (len .Changes) 1}}s{{end}} to {{.I.Service}} near it</a>{{else}}No changes to {{.I.Service}} in the 2h before it opened{{end}}</span>
+    </div>
+  </section>
+
+  <section class="sec" aria-label="Activity">
+    <div class="sh"><h2>Activity</h2><span class="aside">newest first, UTC</span><span class="tools"><div class="seg" role="group" aria-label="Activity filter">
+      <button type="button" data-filter="tl" data-value="all" aria-pressed="true" data-cmd="Show all activity" data-group="View">All <span class="num dim" id="n-all" data-live>{{.Entries}}</span></button>
+      <button type="button" data-filter="tl" data-value="highlights" aria-pressed="false" data-key="H" data-cmd="Show only highlights" data-group="View">Highlights <span class="num dim" id="n-hi" data-live>{{.Highlights}}</span> <kbd>H</kbd></button>
+    </div></span></div>
+    <form method="post" action="/incidents/{{$id}}/note" class="compose" data-event="incident.note" data-clear data-done="Posted to the timeline.">
+      <textarea name="text" rows="1" required placeholder="Write a note (N). Markdown works." aria-label="Note" data-key="N" data-cmd="Write a note" data-group="Work it"></textarea>
+      <div class="bar">
+        <label class="check"><input type="checkbox" name="public" value="on"> Status page and followers too</label>
+        {{if not .I.ResolvedAt}}<button type="button" class="quiet sm" data-template="{{.Template}}" data-key="U" data-cmd="Post a status update" data-group="Work it" onclick="var f=this.form;f.elements.text.value=this.dataset.template;f.elements.public.checked=true;f.elements.text.focus()">Status update <kbd>U</kbd></button>{{end}}
+        <span class="sp"></span><button type="submit" class="sm">Post</button>
+      </div>
+    </form>
+    <div id="tl" data-show="all">
+      <div id="tl-body" data-live>{{range .Activity}}{{if .Quiet}}
+        <div class="gap"><span></span><span class="ln"></span><span>{{.Quiet}}</span></div>{{else if .Entry}}{{template "inc-entry" .}}{{else}}
+        <h3 class="day{{if .HasHi}} hi{{end}}">{{.Day.Format "Mon Jan 2"}}<span>{{.Count}} {{if eq .Count 1}}entry{{else}}entries{{end}}</span></h3>{{end}}{{end}}
+      </div>
+    </div>
+  </section>
+
+  {{if .Groups}}
+  <section class="sec" id="inc-alerts" data-live aria-label="Alerts">
+    <div class="sh"><h2>Alerts</h2><span class="aside">{{len .Alerts}} in {{len .Groups}} group{{if gt (len .Groups) 1}}s{{end}}</span></div>
+    <div class="panel rows">{{range .Groups}}
+      <div class="ag">
+        <div class="ag-top"><code>{{breakable .Name}}</code>{{if .Firing}}<span class="firing">{{.Firing}} firing</span>{{end}}<span class="small dim">{{if .Resolved}}{{.Resolved}} cleared, {{end}}last changed {{ago .Last}} ago</span></div>
+        {{with .Summary}}<div class="sum">{{.}}</div>{{end}}
+        <div class="labels">{{range $k, $v := .Labels}}<code>{{$k}}={{$v}}</code>{{end}}</div>{{if .Varying}}<div class="hint" style="margin-top:6px">Differs between these {{.Count}} alerts: {{range $n, $v := .Varying}}{{if $n}}, {{end}}<code>{{$v}}</code>{{end}}</div>{{end}}
+      </div>{{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Changes}}
+  <section class="sec" id="inc-changes" data-live aria-label="Changes">
+    <div class="sh"><h2>Changes to {{breakable .I.Service}}</h2><span class="aside">from two hours before it opened</span></div>
+    <div class="panel rows">{{range .Changes}}
+      <div class="chg-row"><div>{{if .URL}}<a class="link" href="{{.URL}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</div>
+        <div class="m"><span>{{.Kind}}</span><span>{{clock .At}}</span><span>from {{.Producer}}</span>{{if .By}}<span>by {{who .By}}</span>{{end}}</div></div>{{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Assisted}}
+  <section class="sec" id="inc-assist" data-live aria-label="Assistant">
+    <div class="sh"><h2>Assistant</h2><span class="aside">reads and writes; changes nothing</span></div>
+    <div class="panel rows">{{range .Assisted}}
+      <div class="asst">
+        <div class="m"><b>{{.Kind}}</b><span>{{.State}}</span><span>asked by {{who .AskedBy}} {{ago .AskedAt}} ago</span></div>
+        {{if eq .State "pending"}}<p class="dim" style="margin-top:6px">Working on it. This updates itself.</p>{{else}}<div class="md" style="margin-top:6px">{{markdown (named .Text)}}</div>{{end}}
+        {{if .Evidence}}<details><summary>Evidence ({{len .Evidence}})</summary><ol>{{range .Evidence}}<li><code>{{.Tool}}</code> <code>{{.Input}}</code>{{if .Failed}} <span class="nobody">failed</span>{{end}}<pre>{{.Answer}}</pre></li>{{end}}</ol></details>{{end}}
+      </div>{{end}}
+    </div>
+  </section>
+  {{end}}
+
+  {{else}}
+  <section class="sec" aria-label="Postmortem">
+    {{if .Saved}}<div class="flash ok" data-flash>Postmortem saved.</div>{{end}}
+    <div class="sh"><h2>Postmortem</h2><span class="aside" id="pm-meta" data-live>{{with .Postmortem}}updated {{clock .UpdatedAt}} by {{who .UpdatedBy}}{{else}}not written yet{{end}}</span></div>
+    <p class="hint">Say what happened, who felt it, when each thing happened, why, and what changes so it does not happen again. Blameless: name systems and decisions, not people.</p>
+    <div class="pm-doc" id="pm-doc" data-live>{{with .Postmortem}}<div class="md">{{markdown .Body}}</div>{{end}}</div>
+    <details class="editor"{{if not .Postmortem}} open{{end}}>
+      <summary data-key="W" data-cmd="{{if .Postmortem}}Edit the postmortem{{else}}Write the postmortem{{end}}" data-group="Work it">{{if .Postmortem}}Edit in Markdown{{else}}Write it in Markdown{{end}} <kbd>W</kbd></summary>
+      <form method="post" action="/incidents/{{$id}}/postmortem" data-event="postmortem.save" data-done="Postmortem saved.">
+        <div class="panel">
+          <div class="bar"><span>Markdown</span><span class="sp"></span><span>Saved for everyone on the desk</span><button class="primary sm" type="submit" data-cmd="Save the postmortem" data-group="Work it">Save postmortem</button></div>
+          <textarea name="body" rows="24" aria-label="Postmortem">{{.Body}}</textarea>
+        </div>
+      </form>
+    </details>
+  </section>
+
+  <section class="sec" aria-label="Action items">
+    <div class="sh"><h2>Action items</h2><span class="aside">{{if .Actions}}what changes so it does not happen again{{else}}none yet: what changes so it does not happen again{{end}}</span></div>
+    <div id="pm-actions" data-live>{{if .Actions}}<div class="panel">{{range .Actions}}
+      <div class="act{{if .Done}} done{{end}}">
+        <form method="post" action="/incidents/{{$id}}/actions/{{.ID}}/done" data-event="action.toggle" data-done="{{if .Done}}Marked not done.{{else}}Marked done.{{end}}">
+          <input type="hidden" name="back" value="postmortem"><input type="hidden" name="done" value="{{if .Done}}0{{else}}1{{end}}">
+          <button type="submit" class="box" aria-label="{{if .Done}}Mark not done{{else}}Mark done{{end}}: {{.Text}}">{{if .Done}}&#10003;{{end}}</button>
+        </form>
+        <div class="txt"><span>{{.Text}}</span>{{if .Owner}} <span class="dim small">{{who .Owner}}</span>{{end}}{{if .IssueURL}} <a class="link small" href="{{.IssueURL}}">issue</a>{{end}}</div>
+      </div>{{end}}
+    </div>{{end}}</div>
+    {{if not .AddFirst}}<button type="button" class="quiet act-open" id="act-open" data-key="I" data-cmd="Add an action item" data-group="Work it" onclick="var f=document.getElementById('act-add');if(!f)return;f.hidden=false;var o=document.getElementById('act-open');if(o)o.hidden=true;f.elements.text.focus()">Add an action item <kbd>I</kbd></button>{{end}}
+    <form method="post" action="/incidents/{{$id}}/actions" class="addact act-add" id="act-add" hidden data-event="action.add" data-clear data-done="Action item added.">
+      <input type="hidden" name="back" value="postmortem">
+      <input type="text" name="text" required placeholder="What we change" aria-label="Action item">
+      <select name="owner" aria-label="Owner"><option value="">No owner</option>{{range .People}}<option value="{{.}}">{{who .}}</option>{{end}}</select>
+      <button type="submit">Add</button><button type="button" class="quiet" onclick="this.form.hidden=true;var o=document.getElementById('act-open');if(o)o.hidden=false">Cancel</button>
+    </form>
+  </section>
+  {{end}}
+</div>
+
+<div class="pw" id="pw"><button type="button" class="dbtn" aria-expanded="false" aria-controls="props" onclick="this.setAttribute('aria-expanded', this.parentNode.classList.toggle('open'))">Details</button>
+<aside class="props" id="props" data-live aria-label="Properties">
+  <h4>Properties</h4>
+  <div class="kv"><span class="k">State</span><span class="v"><span class="st {{.I.Phase}}">{{cap .I.Phase}}</span></span></div>
+  <div class="kv"><span class="k">Severity</span><span class="v">
+    <form method="post" action="/incidents/{{$id}}/severity" class="seg" role="group" aria-label="Severity" data-event="incident.severity" data-done="Severity changed.">{{range .Severities}}<button type="submit" name="severity" value="{{.}}" aria-pressed="{{if eq . $.I.Severity}}true{{else}}false{{end}}"{{if ne . $.I.Severity}} data-cmd="Set severity to {{cap .}}" data-group="Properties"{{end}}>{{cap .}}</button>{{end}}</form></span></div>
+  <div class="kv"><span class="k">Owner</span><span class="v own">
+    {{if .I.Owner}}<span class="av">{{initials .I.Owner}}</span><span class="nm">{{who .I.Owner}}</span>{{else}}<span class="av none">?</span><span class="nm nobody">Nobody</span>{{end}}
+    <span class="acts">{{if ne .I.Owner .Email}}<form method="post" action="/incidents/{{$id}}/assign" data-event="incident.assign" data-attr="me" data-done="You hold #{{$id}}."><input type="hidden" name="me" value="1"><button type="submit" class="take" data-key="T" data-cmd="Take it: assign it to me" data-group="Work it" title="Assign it to me">Take</button></form>{{end}}<button type="button" class="quiet sm" data-dialog="d-assign" data-key="I" data-cmd="Assign to someone" data-group="Work it">Assign</button></span></span></div>
+  {{range $r := .RoleNames}}{{with index $.Roles $r}}<div class="kv"><span class="k">{{cap $r}}</span><span class="v"><span class="av">{{initials .}}</span><span class="nm">{{who .}}</span></span></div>{{end}}{{end}}
+  <div class="kv"><span class="k">Service</span><span class="v"><a class="link mono" href="/history?service={{.I.Service}}">{{breakable .I.Service}}</a></span></div>
+  {{with .I.Workload}}<div class="kv"><span class="k">Workload</span><span class="v mono">{{breakable .}}</span></div>{{end}}
+  <div class="kv"><span class="k">Source</span><span class="v">{{cap .I.Source}}</span></div>
+  {{if .I.Alerts}}<div class="kv"><span class="k">Alerts</span><span class="v num">{{if .I.FiringAlerts}}<span class="firing">{{.I.FiringAlerts}} of {{.I.Alerts}} firing</span>{{else}}{{.I.Alerts}}, none firing{{end}}</span></div>{{end}}
+  <h4>Times</h4>
+  <div class="kv"><span class="k">Opened</span><span class="v num">{{clock .I.OpenedAt}}</span></div>
+  {{if .I.ResolvedAt}}<div class="kv"><span class="k">Restored in</span><span class="v num">{{dur (.I.Age .Now)}}</span></div>
+  {{else}}<div class="kv"><span class="k">Open for</span><span class="v num"><time data-since="{{iso .I.OpenedAt}}">{{dur (.I.Age .Now)}}</time></span></div>{{end}}
+  {{with .I.AcknowledgedAt}}<div class="kv"><span class="k">To acknowledge</span><span class="v num">{{dur (.Sub $.I.OpenedAt)}}</span></div>{{end}}
+  {{with .I.MitigatedAt}}<div class="kv"><span class="k">To mitigate</span><span class="v num">{{dur (.Sub $.I.OpenedAt)}}</span></div>{{end}}
+  {{if .I.Settling}}<div class="kv"><span class="k">Closes itself in</span><span class="v num"><time data-until="{{isop .I.ClosesAt}}">{{dur (.I.ClosesAt.Sub .Now)}}</time></span></div>{{end}}
+  <h4>Publish</h4>
+  <div class="kv"><span class="k">Status page</span><span class="v"><span class="nm">{{if .I.Public}}Shown{{else}}Hidden{{end}}</span>
+    <span class="acts"><form method="post" action="/incidents/{{$id}}/public" data-event="incident.public" data-done="{{if .I.Public}}Hidden from{{else}}Shown on{{end}} the status page."><input type="hidden" name="public" value="{{if .I.Public}}0{{else}}1{{end}}"><button type="submit" class="quiet sm" data-cmd="{{if .I.Public}}Hide it from the status page{{else}}Show it on the status page{{end}}" data-group="Properties">{{if .I.Public}}Hide{{else}}Show{{end}}</button></form></span></span></div>
+  <div class="kv"><span class="k">Auto resolve</span><span class="v"><span class="nm">{{if .I.AutoResolve}}On{{else}}Off{{end}}</span>
+    <span class="acts"><form method="post" action="/incidents/{{$id}}/auto-resolve" data-event="incident.auto_resolve" data-done="Auto resolve turned {{if .I.AutoResolve}}off{{else}}on{{end}}."><input type="hidden" name="on" value="{{if .I.AutoResolve}}0{{else}}1{{end}}"><button type="submit" class="quiet sm" data-cmd="Turn auto resolve {{if .I.AutoResolve}}off{{else}}on{{end}}" data-group="Properties">Turn {{if .I.AutoResolve}}off{{else}}on{{end}}</button></form></span></span></div>
+  {{if .Room}}<div class="kv"><span class="k">Teams room</span><span class="v">Channel open</span></div>{{end}}
+  {{if .About}}<h4>From the catalog</h4>
+  {{with index .About "owner"}}<div class="kv"><span class="k">Owner</span><span class="v">{{.}}</span></div>{{end}}
+  {{with index .About "runbook"}}<div class="kv"><span class="k">Runbook</span><span class="v"><a class="link" href="{{.}}">Open the runbook</a></span></div>{{end}}
+  {{with index .About "docs"}}<div class="kv"><span class="k">Docs</span><span class="v"><a class="link" href="{{.}}">Read the docs</a></span></div>{{end}}
+  {{with index .About "repo"}}<div class="kv"><span class="k">Repository</span><span class="v"><a class="link" href="{{.}}">Open the repository</a></span></div>{{end}}
+  {{with index .About "url"}}<div class="kv"><span class="k">Service</span><span class="v"><a class="link" href="{{.}}">Open the service</a></span></div>{{end}}
+  {{end}}
+  {{if .Links}}<h4>Related</h4>
+  {{range .Links}}<a class="mini" href="/incidents/{{.ID}}"><span class="num">#{{.ID}}</span><span>{{.Title}}<small>{{if .Into}}merged into it{{else if eq .Kind "merged"}}merged in{{else}}related{{end}}</small></span></a>{{end}}
+  {{end}}
+  {{with .I.GroupKey}}<h4>Grouping</h4><div class="kv wide"><span class="k">Group key</span><span class="v gk mono dim">{{range $.GroupParts}}<span>{{breakable .}}</span>{{end}}</span></div>{{end}}
+  <button type="button" class="quiet block more" data-dialog="d-more" data-key="." data-cmd="More actions" data-group="Work it"><svg class="i"><use href="#i-more"/></svg>More actions <kbd>.</kbd></button>
+</aside>
+</div>
+</main>
+
+{{if not (and .I.ResolvedAt (not $over))}}
+<div class="pbar{{if .Next.Hot}} hot{{end}}" id="inc-bar" data-live>
+  <p>{{.Next.Say}}</p>
+  {{if .I.ResolvedAt}}<a class="btn primary" href="/incidents/{{$id}}/postmortem">{{if .Postmortem}}Postmortem{{else}}Write it up{{end}}</a>
+  {{else}}{{range .Moves}}{{if .Primary}}<form method="post" action="/incidents/{{$id}}/state" data-event="incident.state" data-attr="{{.To}}" data-done="#{{$id}} is {{.To}} now."><input type="hidden" name="to" value="{{.To}}"><button type="submit" class="primary" data-key="{{.Key}}">{{.Label}}</button></form>{{end}}{{end}}{{end}}
+</div>
+{{end}}
+
+<div id="dlg-assign" data-live><dialog id="d-assign" data-modal aria-label="Assign">
+  <form method="post" action="/incidents/{{$id}}/assign" data-event="incident.assign" data-attr="named" data-done="Owner changed.">
+    <div class="dh"><h2>Who holds #{{$id}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="db form">
+      <label class="field"><span>Owner</span><select name="owner"><option value="">Nobody</option>{{range .People}}<option value="{{.}}"{{if eq . $.I.Owner}} selected{{end}}>{{who .}}</option>{{end}}</select></label>
+      <div class="actions"><button type="submit" class="primary">Assign</button><span class="hint">Assigning does not acknowledge it.</span></div>
+    </div>
+  </form>
+</dialog></div>
+
+<div id="dlg-role" data-live><dialog id="d-role" data-modal aria-label="Roles">
+  <form method="post" action="/incidents/{{$id}}/roles" data-event="incident.role" data-done="Role set.">
+    <div class="dh"><h2>Roles on #{{$id}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="db form">
+      <div class="fields">
+        <label class="field"><span>Role</span><select name="role">{{range .RoleNames}}<option value="{{.}}">{{cap .}}{{with index $.Roles .}}, now {{who .}}{{end}}</option>{{end}}</select></label>
+        <label class="field"><span>Person</span><select name="person"><option value="">Nobody</option>{{range .People}}<option value="{{.}}">{{who .}}</option>{{end}}</select></label>
+      </div>
+      <div class="actions"><button type="submit" class="primary">Set the role</button></div>
+    </div>
+  </form>
+</dialog></div>
+
+<div id="dlg-link" data-live><dialog id="d-link" data-modal aria-label="Link or merge">
+  <form method="post" action="/incidents/{{$id}}/links" data-event="incident.link" data-done="Linked.">
+    <div class="dh"><h2>Link or merge #{{$id}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="db form">
+      <div class="fields">
+        <label class="field"><span>Other incident</span><input type="number" name="other" min="1" required placeholder="Number"></label>
+        <label class="field"><span>How</span><select name="kind"><option value="related">Link to it</option><option value="merge">Merge this into it</option></select></label>
+      </div>
+      <div class="actions"><button type="submit" class="primary">Go</button><span class="hint">A merge moves this incident's alerts there and resolves this one.</span></div>
+    </div>
+  </form>
+</dialog></div>
+
+<div id="dlg-more" data-live><dialog id="d-more" data-modal aria-label="More actions">
+  <div class="dh"><h2>More for #{{$id}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+  <div class="db mlist">
+    <h3>Work it</h3>
+    <button type="button" class="quiet" data-dialog="d-role" onclick="this.closest('dialog').close()" data-cmd="Set a role: commander, comms, scribe" data-group="Work it">Set a role</button>
+    <button type="button" class="quiet" data-dialog="d-link" onclick="this.closest('dialog').close()" data-cmd="Link or merge an incident" data-group="Work it">Link or merge an incident</button>
+    {{if not .I.ResolvedAt}}<form method="post" action="/incidents/{{$id}}/escalate" data-event="incident.escalate" data-done="Told the next step of its chain."><button type="submit" class="quiet" data-cmd="Escalate now" data-group="Work it" title="Tell the next step of its chain without waiting">Escalate now, without waiting</button></form>{{end}}
+    {{if eq .I.State "acknowledged"}}<form method="post" action="/incidents/{{$id}}/snooze" data-event="incident.snooze" data-done="You will be paged again.">
+      <select name="minutes" aria-label="Page me again in"><option value="15">in 15 minutes</option><option value="30">in 30 minutes</option><option value="60" selected>in 1 hour</option><option value="240">in 4 hours</option></select>
+      <button type="submit" class="sm" data-cmd="Page me again later" data-group="Work it">Page me again</button></form>{{end}}
+    {{if and .Rooms (not .Room)}}<form method="post" action="/incidents/{{$id}}/room" data-event="incident.room" data-done="Teams channel opened."><button type="submit" class="quiet" data-cmd="Open a Teams channel" data-group="Work it">Open a Teams channel</button></form>{{end}}
+    {{if .Assistant}}<h3>Assistant</h3>
+    {{range $k, $label := dict "summary" "Catch me up" "update" "Draft a status update" "postmortem" "Draft the postmortem" "investigate" "Investigate: read logs, metrics, and changes"}}<form method="post" action="/incidents/{{$id}}/assist" data-event="incident.assist" data-attr="{{$k}}" data-done="Asked. The answer lands on the page."><input type="hidden" name="kind" value="{{$k}}"><button type="submit" class="quiet" data-cmd="Assistant: {{$label}}" data-group="Assistant">{{$label}}</button></form>{{end}}
+    <p class="hint">The assistant reads and writes only; it changes nothing, and an investigation cites what it read.</p>{{end}}
+  </div>
+</dialog></div>
+{{end}}

@@ -1,0 +1,9 @@
+{"schemaId":"azureMonitorCommonAlertSchema","data":{"essentials":{
+ "alertId":"/subscriptions/s/providers/Microsoft.AlertsManagement/alerts/a1","alertRule":"PersistentVolumeAlmostFull",
+ "severity":"Sev1","signalType":"Metric","monitorCondition":"CONDITION","monitoringService":"Prometheus",
+ "alertTargetIDs":["/subscriptions/s/resourcegroups/rg/providers/microsoft.monitor/accounts/ws"],
+ "firedDateTime":"2026-11-16T20:00:00.000Z","resolvedDateTime":"2026-11-16T21:00:00.000Z"},
+ "alertContext":{"interval":"PT1M","expression":"used / capacity > 0.9","expressionValue":"0.93","for":"PT5M",
+  "labels":{"alertname":"PersistentVolumeAlmostFull","namespace":"beacon-prod","persistentvolumeclaim":"beacon-files","severity":"critical","notify":"sms"},
+  "annotations":{"summary":"beacon-files in beacon-prod is 93% full"}},
+ "customProperties":null}}

@@ -1,0 +1,110 @@
+{{define "title"}}{{if eq .Page.State "active"}}Paging: {{end}}{{named .Event.Title}} · dispatch{{end}}
+{{define "style"}}
+.pg { max-width:900px; }
+.pg h1 { font-size:24px; font-weight:720; letter-spacing:-.02em; line-height:1.3; overflow-wrap:anywhere; margin:6px 0 4px; }
+.pg .sub { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:13px; color:var(--dim); }
+.ask { margin-top:18px; padding:18px; border-radius:12px; border:1px solid var(--line); background:var(--panel); }
+.ask.active { border-color:var(--crit); box-shadow:inset 4px 0 0 var(--crit); background:var(--crit-w); }
+.ask.acknowledged { box-shadow:inset 4px 0 0 var(--ok); }
+.ask .say { font-size:16px; font-weight:680; line-height:1.4; }
+.ask .say time { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ask .actions { margin-top:14px; gap:10px; }
+.ask button.big { min-height:48px; padding:0 22px; font-size:15px; }
+.ask .text { white-space:pre-wrap; margin-top:14px; color:var(--ink-2); overflow-wrap:anywhere; }
+.facts { display:grid; grid-template-columns:140px minmax(0, 1fr); gap:6px 14px; font-size:13.5px; margin-top:14px; }
+.facts dt { color:var(--dim); } .facts dd { margin:0; overflow-wrap:anywhere; }
+.chain { list-style:none; margin:0; padding:0; }
+.chain li { display:grid; grid-template-columns:28px minmax(0, 1fr) auto; gap:4px 14px; align-items:center; padding:12px 16px; }
+.chain li + li { border-top:1px solid var(--line); }
+.chain .n { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line-2); color:var(--ink-2); }
+.chain li.past .n { background:var(--ink-2); color:var(--bg); box-shadow:none; }
+.chain li.now { background:var(--crit-w); }
+.chain li.now .n { background:var(--crit); color:var(--on-crit); box-shadow:none; }
+.chain .who { overflow-wrap:anywhere; font-weight:560; }
+.chain .wait { font-size:12.5px; color:var(--dim); white-space:nowrap; }
+.chain .st { font-size:12.5px; }
+.chain li.end { color:var(--dim); font-size:13px; }
+.whom { display:inline-flex; align-items:center; gap:8px; font-weight:600; }
+.whom .av { width:22px; height:22px; font-size:12px; }
+.trail { display:flex; flex-wrap:wrap; gap:2px 12px; font-size:12.5px; color:var(--dim); }
+.trail .err { color:var(--crit-ink); overflow-wrap:anywhere; }
+@media (max-width:860px) {
+  .pg h1 { font-size:20px; }
+  .ask button.big { width:100%; }
+  .facts { grid-template-columns:1fr; gap:0 0; } .facts dd { margin-bottom:8px; }
+  .chain li { grid-template-columns:24px minmax(0, 1fr); padding:12px; }
+  .chain li .wait, .chain li .st { grid-column:2; }
+  .tbl.stack thead { display:none; }
+  .tbl.stack tr { display:flex; flex-wrap:wrap; gap:6px 14px; padding:12px; border-top:1px solid var(--line); }
+  .tbl.stack tbody tr:first-child { border-top:0; }
+  .tbl.stack td { display:block; padding:0; border:0; }
+  .tbl.stack td.main { flex-basis:100%; }
+}
+{{end}}
+{{define "content"}}
+<main class="page pg">
+  <div class="crumbs">{{if .Admin}}<a href="/notifications">Notifications</a><span>/</span>{{end}}<span>Page {{.Page.ID}}</span></div>
+  {{if .Done}}<div class="flash ok" data-flash>{{.Done}}</div>{{end}}
+  <h1>{{named .Event.Title}}</h1>
+  <div class="sub"><span>{{.Event.Producer}} paged through {{.Chain}}</span><span>started <time data-since="{{iso .Page.StartedAt}}">{{ago .Page.StartedAt}}</time> ago</span>{{if .Page.Repeat}}<span>round {{inc .Page.Round}} of {{inc .Page.Repeat}}</span>{{end}}</div>
+
+  <div id="ask" data-live class="ask {{.Page.State}}">
+    {{if eq .Page.State "active"}}
+    <p class="say">Nobody has this yet. {{if .Messages}}Step {{inc .Page.Step}} is told{{else}}Step {{inc .Page.Step}} started, but no message went out to anyone{{end}}; the next step starts in <time data-until="{{iso .Page.NextAt}}">{{dur (.Page.NextAt.Sub $.Now)}}</time>.</p>
+    <div class="actions">
+      <form method="post" action="/pages/{{.Page.ID}}/acknowledge" data-event="page.acknowledge"><button class="primary big" type="submit" data-key="A" data-cmd="Acknowledge this page" data-group="Page">Acknowledge <kbd>A</kbd></button></form>
+      <form method="post" action="/pages/{{.Page.ID}}/escalate" data-event="page.escalate" data-confirm="Tell the next step now?"><button type="submit" data-key="E" data-cmd="Tell the next step now" data-group="Page">Tell the next step now <kbd>E</kbd></button></form>
+    </div>
+    {{else if eq .Page.State "acknowledged"}}
+    <p class="say">Acknowledged by {{who .Page.AcknowledgedBy}}{{if .Page.AcknowledgedAt}}, {{ago .Page.AcknowledgedAt.UTC}} ago{{end}}. Nobody else in the chain is told.</p>
+    {{else}}
+    <p class="say">Nobody acknowledged it before the chain ran out.</p>
+    {{end}}
+    {{if .Event.Text}}<p class="text">{{named .Event.Text}}</p>{{end}}
+    {{if .Event.Facts}}<dl class="facts">{{range .Event.Facts}}<dt>{{if eq .Name "By"}}Raised by{{else}}{{.Name}}{{end}}</dt><dd>{{named .Value}}</dd>{{end}}</dl>{{end}}
+    {{if .Event.Links}}<div class="actions" style="margin-top:14px">{{range .Event.Links}}<a class="btn sm" href="{{.URL}}">{{.Title}}</a>{{end}}</div>{{end}}
+  </div>
+
+  <section class="sec">
+    <div class="sh"><h2>The chain</h2><span class="aside">told in order until someone acknowledges</span></div>
+    <div class="panel" id="chain" data-live>
+      <ol class="chain">
+      {{range $i, $s := .Steps}}{{$now := and (eq $i $.Page.Step) (eq $.Page.State "active")}}
+        <li class="{{if lt $i $.Page.Step}}past{{else if $now}}now{{end}}">
+          <span class="n">{{$s.N}}</span>
+          <span class="who">Tell {{range $j, $w := $s.Who}}{{if $j}}, {{end}}{{$w}}{{end}}</span>
+          <span class="wait">{{if $now}}{{if $.Messages}}<span class="st firing">told, waiting</span>{{else}}<span class="st firing">started, nobody reached</span>{{end}}{{else if lt $i $.Page.Step}}told, waited {{$s.Wait}} min{{else if eq $.Page.State "active"}}then waits {{$s.Wait}} min{{else}}waits {{$s.Wait}} min{{end}}</span>
+        </li>
+      {{end}}
+        <li class="end"><span></span><span>{{if .Page.Repeat}}Then start over, {{.Page.Repeat}} more time{{if gt .Page.Repeat 1}}s{{end}}, then the page ends unanswered.{{else}}Then the page ends unanswered.{{end}}</span><span></span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Who was told</h2><span class="aside">{{len .Messages}}</span></div>
+    <div class="panel" id="told" data-live>
+    {{if .Messages}}
+      <table class="tbl stack" id="told-table">
+        <thead><tr><th>Person</th><th>By</th><th>What happened</th></tr></thead>
+        <tbody>
+        {{range .Messages}}
+          <tr>
+            <td class="main"><span class="whom"><span class="av">{{initials .Person}}</span>{{who .Person}}</span></td>
+            <td>{{if eq (print .Medium) "sms"}}SMS{{else}}{{cap .Medium}}{{end}}</td>
+            <td><div class="trail">
+              <span>{{.State}}{{if .SentAt}} {{ago .SentAt.UTC}} ago{{else}}, due {{clock .NextAt}}{{end}}</span>
+              {{if .DeliveredAt}}<span>on the device {{ago .DeliveredAt.UTC}} ago</span>{{end}}
+              {{if .OpenedAt}}<span>opened {{ago .OpenedAt.UTC}} ago</span>{{end}}
+              {{if .Receipt}}<span>{{.Receipt}}</span>{{end}}
+              {{if .LastError}}<span class="err">{{named .LastError}}</span>{{end}}
+            </div></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    {{else}}<div class="empty">{{if eq .Page.State "active"}}Step {{inc .Page.Step}} started, but no message went out to anyone. Messages to people on Notifications shows what the desk tried.{{else}}No message went out.{{end}}</div>{{end}}
+    </div>
+  </section>
+</main>
+{{end}}

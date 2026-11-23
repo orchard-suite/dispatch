@@ -1,0 +1,501 @@
+{{define "title"}}{{if eq .Place "routing"}}Routes{{else if eq .Place "status"}}Status settings{{else if eq .Place "machines"}}Machines{{else}}General settings{{end}} · dispatch{{end}}
+{{define "style"}}
+.cfg { list-style:none; margin:0; padding:0; }
+.cfg > li { display:grid; grid-template-columns:30px minmax(0, 1fr) auto auto; gap:6px 14px; align-items:start; padding:10px 14px; }
+.cfg > li + li { border-top:1px solid var(--line); }
+.cfg > li.plain { grid-template-columns:minmax(0, 1fr) auto auto; }
+.cfg .no { font:600 12px/24px var(--mono); color:var(--faint); text-align:right; }
+.cfg details { min-width:0; }
+.cfg summary { list-style:none; cursor:pointer; line-height:24px; border-radius:6px; overflow-wrap:anywhere; }
+.cfg summary::-webkit-details-marker { display:none; }
+.cfg summary:hover .say { text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; }
+.cfg summary .edit { color:var(--faint); font-size:12px; margin-left:8px; }
+.cfg details[open] summary .edit { display:none; }
+.cfg .count { font-size:12.5px; color:var(--dim); white-space:nowrap; line-height:24px; font-variant-numeric:tabular-nums; text-align:right; }
+.cfg .count b { color:var(--ink); font-weight:650; }
+.cfg .count.zero b { color:var(--dim); font-weight:560; }
+.cfg .tools { display:flex; gap:2px; align-items:center; }
+.cfg .tools form { display:flex; gap:2px; }
+.cfg .tools button { min-width:28px; padding:0 7px; }
+.cfg li.rest { color:var(--dim); font-size:13px; }
+.cfg > li.add { display:block; padding:4px 8px; }
+.cfg > li.add:has(details[open]) { background:var(--sunk); padding:4px 14px 12px; border-radius:0 0 10px 10px; }
+.cfg li.add.draft { background:var(--accent-w); box-shadow:inset 3px 0 0 var(--accent); }
+details.new > summary { list-style:none; display:inline-flex; align-items:center; gap:6px; min-height:var(--tap); padding:0 8px; border-radius:8px; color:var(--accent-ink); font-size:13px; font-weight:620; cursor:pointer; }
+details.new > summary::-webkit-details-marker { display:none; }
+details.new > summary:hover { background:var(--hover); }
+details.new[open] > summary { padding:0; }
+details.new[open] > summary:hover { background:transparent; }
+.say code { background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line); border-radius:4px; padding:0 5px; }
+.say .k { color:var(--dim); font-family:var(--mono); font-size:12.5px; }
+.then { font-weight:650; white-space:nowrap; }
+.then.t-drop { color:var(--ink-2); } .then.t-notice { color:var(--info-ink); } .then.t-page { color:var(--crit-ink); } .then.t-severity { color:var(--warn-ink); }
+.ed { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; }
+.cfg li.add .ed { margin-top:0; }
+.ed input[type=text], .ed select { width:auto; min-width:0; font-family:var(--mono); font-size:12.5px; }
+.ed .w-k, .ed input.w-k { width:150px; } .ed .w-v, .ed input.w-v { width:200px; } .ed .w-l, .ed input.w-l { width:min(100%, 420px); } .ed .w-s, .ed select.w-s { width:116px; }
+.ed { column-gap:14px; }
+.ed .ph { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+.ed .word { color:var(--dim); font-size:13px; white-space:nowrap; }
+.ed .word .p { display:none; }
+.ed .go { margin-left:auto; display:flex; gap:8px; align-self:flex-start; }
+.ed .go button { min-height:var(--tap); }
+.ed input.w-n { width:72px; } .ed input.w-t { width:auto; }
+.ed .from { flex-basis:100%; font-size:12.5px; font-weight:650; color:var(--accent-ink); }
+.ed .effect { flex-basis:100%; font-size:13px; color:var(--ink-2); }
+.ed .effect.hint { color:var(--dim); }
+.ed input.w-n[type=number] { width:90px; }
+.ed input[type=datetime-local] { font-family:var(--mono); font-size:12.5px; width:210px; color:var(--ink); }
+.ed input[type=datetime-local]::-webkit-calendar-picker-indicator { opacity:.55; cursor:pointer; }
+.ed input[type=datetime-local]:invalid:not(:focus) { color:var(--faint); }
+#tokens .panel > ol.cfg { border-top:1px solid var(--line); }
+.acts { display:inline-flex; border:1px solid var(--line-2); border-radius:8px; overflow:hidden; background:var(--panel); }
+.acts label { position:relative; display:inline-flex; align-items:center; min-height:var(--tap); padding:0 11px; font-size:12.5px; font-weight:600; color:var(--ink-2); cursor:pointer; }
+.acts label + label { border-left:1px solid var(--line-2); }
+.acts input { position:absolute; opacity:0; inset:0; margin:0; cursor:pointer; }
+.acts label:has(input:checked) { background:var(--accent); color:var(--on-accent); }
+.acts label:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:-2px; }
+.ed:not(:has(input[value=severity]:checked)) .sevpick { display:none !important; }
+.state { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:640; white-space:nowrap; }
+.state::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--line-2); }
+.state.ok { color:var(--ok-ink); } .state.ok::before { background:var(--ok); }
+.state.late { color:var(--crit-ink); } .state.late::before { background:var(--crit); }
+.state.active { color:var(--warn-ink); } .state.active::before { background:var(--warn); }
+.state.wait { color:var(--dim); }
+.meta { display:flex; flex-wrap:wrap; gap:2px 14px; font-size:13px; color:var(--dim); margin-top:2px; }
+.meta .who { display:inline-flex; align-items:center; gap:6px; }
+.meta .av { width:22px; height:22px; font-size:12px; }
+.tbl td.main b { font-weight:650; overflow-wrap:anywhere; }
+.newsecret { padding:14px 16px; border-bottom:1px solid var(--line); background:var(--ok-w); border-radius:10px 10px 0 0; }
+.newsecret p { margin-bottom:8px; color:var(--ok-ink); font-weight:600; }
+.newsecret .secret { background:var(--panel); }
+@media (max-width:860px) {
+  .cfg > li { grid-template-columns:24px minmax(0, 1fr) auto; padding:12px; }
+  .cfg > li.plain { grid-template-columns:minmax(0, 1fr) auto; }
+  .cfg > li > details, .cfg > li.rest > span:nth-child(2) { grid-column:2 / -1; }
+  .cfg > li.plain > details, .cfg > li.plain > div { grid-column:1 / -1; }
+  .cfg .count { grid-column:2; grid-row:2; justify-self:start; text-align:left; align-self:center; }
+  .cfg .tools { grid-column:3; grid-row:2; }
+  .cfg > li.plain .count { display:none; }
+  .cfg > li.plain .tools, .cfg > li.plain > form { grid-column:2; grid-row:2; justify-self:end; }
+  .cfg > li.add { display:block; padding:4px 8px; }
+  .cfg .tools button { min-width:var(--tap); }
+  .ed { flex-direction:column; align-items:stretch; gap:12px; }
+  .ed .ph { flex-direction:column; align-items:stretch; gap:4px; }
+  .ed .word { font-size:12.5px; font-weight:620; color:var(--ink-2); white-space:normal; }
+  .ed .word .d { display:none; } .ed .word .p { display:inline; }
+  .ed input.w-k, .ed input.w-v, .ed input.w-l, .ed select.w-s, .ed input.w-n, .ed input.w-t, .ed select { width:100%; }
+  .ed .go { margin-left:0; justify-content:flex-end; align-self:stretch; }
+  .cfg summary { display:block; min-height:var(--tap); padding-top:10px; }
+  .cfg .no { padding-top:10px; }
+  .cfg summary .edit { white-space:nowrap; }
+  .acts { display:grid; grid-template-columns:repeat(2, 1fr); width:100%; }
+  .acts label + label { border-left:0; }
+  .acts label { border-top:1px solid var(--line-2); justify-content:center; }
+  .acts label:nth-child(-n+2) { border-top:0; }
+  .acts label:nth-child(even) { border-left:1px solid var(--line-2); }
+    .tbl.stack thead { display:none; }
+  .tbl.stack tr { display:flex; flex-wrap:wrap; gap:4px 14px; padding:12px; border-top:1px solid var(--line); }
+  .tbl.stack tbody tr:first-child { border-top:0; }
+  .tbl.stack td { display:block; padding:0; border:0; }
+  .tbl.stack td.main { flex-basis:100%; }
+  .tbl.stack td[data-l]::before { content:attr(data-l) " "; color:var(--dim); }
+}
+{{end}}
+
+{{define "matchfields"}}{{$f := ""}}{{$v := ""}}{{$r := ""}}{{with .}}{{$f = .First.K}}{{$v = .First.V}}{{$r = .Rest}}{{end}}
+<label class="ph"><span class="word"><span class="d">When</span><span class="p">Label</span></span><input type="text" class="w-k" name="label" value="{{$f}}" placeholder="alertname" required></label>
+<label class="ph"><span class="word"><span class="d">is</span><span class="p">Value, a glob</span></span><input type="text" class="w-v" name="value" value="{{$v}}" placeholder="Kube*" required></label>
+<label class="ph"><span class="word"><span class="d">and</span><span class="p">More labels, optional</span></span><input type="text" class="w-v" name="match" value="{{$r}}" placeholder="job=api"></label>
+{{end}}
+
+{{define "actfields"}}{{$a := "notice"}}{{$s := "warning"}}{{with .}}{{$a = .Action}}{{if .Severity}}{{$s = .Severity}}{{end}}{{end}}
+<span class="ph"><span class="word"><span class="d">then</span><span class="p">What it does</span></span><span class="acts" role="radiogroup" aria-label="What it does">
+  <label><input type="radio" name="action" value="drop"{{if eq $a "drop"}} checked{{end}}>Drop it</label>
+  <label><input type="radio" name="action" value="notice"{{if eq $a "notice"}} checked{{end}}>Make it a notice</label>
+  <label><input type="radio" name="action" value="page"{{if eq $a "page"}} checked{{end}}>Page</label>
+  <label><input type="radio" name="action" value="severity"{{if eq $a "severity"}} checked{{end}}>Rate it</label>
+</span>
+</span>
+<label class="ph sevpick"><span class="word"><span class="d">as</span><span class="p">Severity</span></span><select class="w-s" name="severity"><option value="critical"{{if eq $s "critical"}} selected{{end}}>Critical</option><option value="warning"{{if eq $s "warning"}} selected{{end}}>Warning</option><option value="info"{{if eq $s "info"}} selected{{end}}>Info</option></select></label>
+{{end}}
+
+{{define "say-match"}}{{range $j, $m := .}}{{if $j}} and {{end}}<span class="k">{{$m.K}}</span> is <code>{{$m.V}}</code>{{end}}{{end}}
+
+{{define "rowtools"}}
+<div class="tools">
+  {{if .Move}}<form method="post" action="/settings/lists/{{.List}}" data-event="settings.row" data-attr="move">
+    <input type="hidden" name="i" value="{{.I}}">
+    <button type="submit" class="sm quiet" name="op" value="up" aria-label="Move up"{{if eq .I 0}} disabled{{end}}>&#8593;</button>
+    <button type="submit" class="sm quiet" name="op" value="down" aria-label="Move down"{{if .Last}} disabled{{end}}>&#8595;</button>
+  </form>{{end}}
+  <form method="post" action="/settings/lists/{{.List}}" data-event="settings.row" data-attr="remove" data-confirm="Remove this row?">
+    <input type="hidden" name="i" value="{{.I}}"><input type="hidden" name="op" value="remove">
+    <button type="submit" class="sm quiet" aria-label="Remove">Remove</button>
+  </form>
+</div>
+{{end}}
+
+{{define "content"}}
+<main class="page">
+  <div class="crumbs"><span>Settings</span></div>
+  <div class="ph">
+    <div>
+      {{if eq .Place "routing"}}<h1>Routes</h1><p class="lede">Every alert runs down the routes before the desk decides whether it pages. The first route that fits wins. Then the mapping rules name its service.</p>
+      {{else if eq .Place "status"}}<h1>Status settings</h1><p class="lede">What the public status page may name. A service not listed is never named there; an incident shows only when marked public on its page.</p>
+      {{else if eq .Place "machines"}}<h1>Machines</h1><p class="lede">What machines may do: the API's tokens, the windows that quiet a service, the check-ins jobs promise, and where action items open issues.</p>
+      {{else}}<h1>General</h1><p class="lede">How alerts group into incidents, when quiet incidents close themselves, and how many pages people and services may take.</p>{{end}}
+    </div>
+  </div>
+  {{with .Saved}}<div class="flash ok" data-flash>{{.}}</div>{{end}}
+  {{if .Bad}}<div class="flash bad" data-message>{{range $i, $b := .Bad}}{{if $i}}; {{end}}{{if eq (len $.Bad) 1}}{{cap $b}}.{{else}}<code>{{$b}}</code>{{end}}{{end}}</div>{{end}}
+
+{{if eq .Place "general"}}
+  <div id="general-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">{{if .WindowMinutes}}Alerts that fire again within <b>{{.WindowMinutes}} minutes</b> of a resolved incident reopen it{{else}}Every alert after a resolve opens <b>a new incident</b>{{end}}</span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="window_minutes">
+              <input type="hidden" name="place" value="general">
+              <label class="ph"><span class="word"><span class="d">Reopen within</span><span class="p">Grouping window, minutes</span></span><input type="number" class="w-n" name="window_minutes" min="0" max="10080" value="{{.WindowMinutes}}" required></label><span class="word">minutes</span>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+              <span class="effect hint">An unresolved incident always takes its alerts. 0 never reopens.</span>
+            </form>
+          </details>
+        </li>
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">{{if .QuietHours}}An incident whose alerts stay quiet for <b>{{.QuietHours}} hours</b> resolves itself{{else}}A quiet incident <b>never resolves itself</b>{{end}}</span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="quiet_resolve_hours">
+              <input type="hidden" name="place" value="general">
+              <label class="ph"><span class="word"><span class="d">Resolve after</span><span class="p">Quiet window, hours</span></span><input type="number" class="w-n" name="quiet_resolve_hours" min="0" max="720" value="{{.QuietHours}}" required></label><span class="word">quiet hours</span>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+              <span class="effect hint">0 leaves every incident for a person to resolve.</span>
+            </form>
+          </details>
+        </li>
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">A new info incident {{if .Settings.AutoResolveInfo}}<b>resolves itself</b>{{else}}<b>stays open</b>{{end}} when its last alert resolves</span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="auto_resolve_info">
+              <input type="hidden" name="place" value="general">
+              <label class="ph"><span class="word"><span class="d">A new info incident</span><span class="p">New info incidents</span></span><select class="w-l" name="auto_resolve_info"><option value="on"{{if .Settings.AutoResolveInfo}} selected{{end}}>resolves itself</option><option value="off"{{if not .Settings.AutoResolveInfo}} selected{{end}}>stays open</option></select></label>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+              <span class="effect hint">When its last alert resolves.</span>
+            </form>
+          </details>
+        </li>
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">Night is 22:00 to 07:00 in <b>{{with .Settings.Zone}}{{.}}{{else}}UTC{{end}}</b></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="zone">
+              <input type="hidden" name="place" value="general">
+              <label class="ph"><span class="word"><span class="d">Desk time zone</span><span class="p">Desk time zone</span></span><input type="text" class="w-k" name="zone" value="{{.Settings.Zone}}" placeholder="America/New_York"></label>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+              <span class="effect hint">Night is when budgets hold notify messages for the morning.</span>
+            </form>
+          </details>
+        </li>
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">{{if .Settings.PersonPages}}A person takes <b>{{.Settings.PersonPages}} pages a week</b>, then notify messages wait for 07:00{{else}}A person takes <b>any number of pages</b> a week{{end}}</span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="person_pages">
+              <input type="hidden" name="place" value="general">
+              <label class="ph"><span class="word"><span class="d">A person takes</span><span class="p">Pages a person takes a week</span></span><input type="number" class="w-n" name="person_pages" min="0" value="{{.Settings.PersonPages}}" required></label><span class="word">pages a week</span>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+              <span class="effect hint">0 is no budget.</span>
+            </form>
+          </details>
+        </li>
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">{{if .Settings.ServicePages}}A service may cause <b>{{.Settings.ServicePages}} pages a week</b> before <code>budget.exceeded</code> is told{{else}}A service may cause <b>any number of pages</b> a week{{end}}</span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="service_pages">
+              <input type="hidden" name="place" value="general">
+              <label class="ph"><span class="word"><span class="d">A service may cause</span><span class="p">Pages a service may cause a week</span></span><input type="number" class="w-n" name="service_pages" min="0" value="{{.Settings.ServicePages}}" required></label><span class="word">pages a week</span>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+              <span class="effect hint">0 is no budget. Past it, channels that take <code>budget.exceeded</code> are told.</span>
+            </form>
+          </details>
+        </li>
+      </ol>
+  </div>
+{{end}}
+
+{{if eq .Place "routing"}}
+  <section class="sec" id="routes">
+    <div class="sh"><h2>Routes</h2><span class="aside">in order, first fit wins; counts are the last 7 days' {{.Alerts}} alerts</span></div>
+    <div id="routes-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range $i, $r := .Routes}}
+        <li>
+          <span class="no">{{$r.N}}</span>
+          <details>
+            <summary data-row><span class="say">When {{template "say-match" $r.Match}}, <span class="then t-{{$r.Action}}">{{$r.Then}}</span></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings/lists/routes" class="ed" data-event="settings.row" data-attr="replace">
+              <input type="hidden" name="op" value="replace"><input type="hidden" name="i" value="{{$r.I}}">
+              {{template "matchfields" $r}}
+              {{template "actfields" $r}}
+              <span class="go"><button type="submit" class="primary sm">Save route</button></span>
+            </form>
+          </details>
+          <span class="count{{if not $r.Caught}} zero{{end}}"><b>{{$r.Caught}}</b> caught</span>
+          {{template "rowtools" $r.Tools}}
+        </li>
+      {{end}}
+        <li class="rest"><span class="no">{{inc (len .Routes)}}</span><span>Anything else pages when it is critical or labelled <code>page=true</code> or <code>notify=sms</code>; the rest is a notice.</span><span class="count"><b>{{.Rest}}</b> fell through</span><span></span></li>
+        {{$d := .Draft}}
+        <li class="add{{if $d}} draft{{end}}" id="new-route">
+                    <details class="new"{{if $d}} open{{end}}><summary data-key="N" data-cmd="New route" data-group="Settings"><svg class="i"><use href="#i-plus"/></svg>New route <kbd>N</kbd></summary>
+          <form method="post" action="/settings/lists/routes" class="ed" data-event="settings.row" data-attr="add">
+            <input type="hidden" name="op" value="add">
+            {{if $d}}<span class="from">From Quiet it: ready to save at the end of the list</span>{{end}}
+            {{template "matchfields" $d}}
+            {{template "actfields" $d}}
+            <span class="go"><button type="submit" class="primary sm">Add route</button></span>
+            {{if $d}}<span class="effect">Last 7 days it would have caught <b>{{$d.Caught}}</b> alert{{if ne $d.Caught 1}}s{{end}} that no route above catches.</span>{{end}}
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="rules">
+    <div class="sh"><h2>Mapping rules</h2><span class="aside">which service an alert is on; first fit wins, else the first of <code>service</code>, <code>app</code>, <code>namespace</code>, <code>job</code></span></div>
+    <div id="rules-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range $i, $r := .Rules}}
+        <li>
+          <span class="no">{{$r.N}}</span>
+          <details>
+            <summary data-row><span class="say">When {{template "say-match" $r.Match}}, the service is <b>{{$r.Service}}</b></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings/lists/rules" class="ed" data-event="settings.row" data-attr="replace">
+              <input type="hidden" name="op" value="replace"><input type="hidden" name="i" value="{{$r.I}}">
+              {{template "matchfields" $r}}
+              <label class="ph"><span class="word"><span class="d">the service is</span><span class="p">Service</span></span><input type="text" class="w-k" name="service" value="{{$r.Service}}" required></label>
+              <span class="go"><button type="submit" class="primary sm">Save rule</button></span>
+            </form>
+          </details>
+          <span class="count{{if not $r.Caught}} zero{{end}}"><b>{{$r.Caught}}</b> mapped</span>
+          {{template "rowtools" $r.Tools}}
+        </li>
+      {{end}}
+        <li class="add">
+                    <details class="new"><summary><svg class="i"><use href="#i-plus"/></svg>New rule</summary>
+          <form method="post" action="/settings/lists/rules" class="ed" data-event="settings.row" data-attr="add">
+            <input type="hidden" name="op" value="add">
+            {{template "matchfields" $.Blank}}
+            <label class="ph"><span class="word"><span class="d">the service is</span><span class="p">Service</span></span><input type="text" class="w-k" name="service" required placeholder="cluster"></label>
+            <span class="go"><button type="submit" class="primary sm">Add rule</button></span>
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+{{end}}
+
+{{if eq .Place "status"}}
+  <section class="sec">
+    <div id="title-row" data-live class="panel" data-rows><ol class="cfg">
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">The <a class="link" href="/status">status page</a> is titled <b>{{.Settings.StatusTitle}}</b></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings" class="ed" data-event="settings.save" data-attr="status">
+              <input type="hidden" name="place" value="status">
+              <label class="ph"><span class="word"><span class="d">Title</span><span class="p">Status page title</span></span><input type="text" class="w-l" name="status_title" value="{{.Settings.StatusTitle}}" maxlength="80" required></label>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+            </form>
+          </details>
+        </li>
+    </ol></div>
+  </section>
+
+  <section class="sec" id="components">
+    <div class="sh"><h2>Public components</h2><span class="aside">the only services the status page names</span></div>
+    <div id="components-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range .Components}}
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say"><code>{{.K}}</code> shows as <b>{{.V}}</b></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings/lists/components" class="ed" data-event="settings.row" data-attr="replace">
+              <input type="hidden" name="op" value="replace"><input type="hidden" name="i" value="{{.I}}">
+              <label class="ph"><span class="word">Service</span><input type="text" class="w-k" name="key" value="{{.K}}" required></label><label class="ph"><span class="word"><span class="d">shows as</span><span class="p">Name people see</span></span><input type="text" class="w-v" name="name" value="{{.V}}" required></label>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+            </form>
+          </details>
+          <span class="count"></span>
+          {{template "rowtools" .Tools}}
+        </li>
+      {{end}}
+        <li class="add plain">
+          <details class="new"><summary><svg class="i"><use href="#i-plus"/></svg>New component</summary>
+          <form method="post" action="/settings/lists/components" class="ed" data-event="settings.row" data-attr="add">
+            <input type="hidden" name="op" value="add">
+            <label class="ph"><span class="word">Service</span><input type="text" class="w-k" name="key" required placeholder="shop"></label><label class="ph"><span class="word"><span class="d">shows as</span><span class="p">Name people see</span></span><input type="text" class="w-v" name="name" required placeholder="Online shop"></label>
+            <span class="go"><button type="submit" class="primary sm">Add component</button></span>
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="templates">
+    <div class="sh"><h2>Status update templates</h2><span class="aside">how an update starts, by severity; <code>{title}</code>, <code>{service}</code>, <code>{state}</code> are filled in</span></div>
+    <div id="templates-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range .Templates}}{{$k := .K}}
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say"><span class="sev {{.K}}">{{cap .K}}</span> starts <q>{{.V}}</q></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings/lists/templates" class="ed" data-event="settings.row" data-attr="replace">
+              <input type="hidden" name="op" value="replace"><input type="hidden" name="i" value="{{.I}}">
+              <label class="ph"><span class="word"><span class="d">For</span><span class="p">Severity</span></span><select class="w-s" name="key">{{range $.Severities}}<option value="{{.}}"{{if eq (print .) $k}} selected{{end}}>{{cap .}}</option>{{end}}</select></label><label class="ph"><span class="word"><span class="d">start with</span><span class="p">Text</span></span><input type="text" class="w-l" name="text" value="{{.V}}" required></label>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+            </form>
+          </details>
+          <span class="count"></span>
+          {{template "rowtools" .Tools}}
+        </li>
+      {{end}}
+        <li class="add plain">
+          <details class="new"><summary><svg class="i"><use href="#i-plus"/></svg>New template</summary>
+          <form method="post" action="/settings/lists/templates" class="ed" data-event="settings.row" data-attr="add">
+            <input type="hidden" name="op" value="add">
+            <label class="ph"><span class="word"><span class="d">For</span><span class="p">Severity</span></span><select class="w-s" name="key">{{range .Severities}}<option value="{{.}}">{{cap .}}</option>{{end}}</select></label><label class="ph"><span class="word"><span class="d">start with</span><span class="p">Text</span></span><input type="text" class="w-l" name="text" required placeholder="We know {service} is down."></label>
+            <span class="go"><button type="submit" class="primary sm">Add template</button></span>
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+{{end}}
+
+{{if eq .Place "machines"}}
+  <section class="sec" id="tokens">
+    <div class="sh"><h2>API tokens</h2><span class="aside">{{if .SharedSecret}}the shared secret from the environment opens the API too{{else}}no shared secret is set; only these open the API{{end}}</span></div>
+    <div class="panel">
+      {{if .Fresh}}<div class="newsecret" data-flash><p>Token {{.FreshName}} is ready. Copy it now; it is shown once.</p><span class="secret">{{.Fresh}}</span><p class="hint" style="margin:8px 0 0">Send it as <code>Authorization: Bearer</code> and the token.</p></div>{{end}}
+      <div id="tokens-list" data-live>
+      {{if .Tokens}}
+      <table class="tbl stack" id="tokens-table">
+        <thead><tr><th data-sort>Name</th><th data-sort>Made by</th><th data-sort>Made</th><th data-sort>Last used</th><th></th></tr></thead>
+        <tbody>
+        {{range .Tokens}}
+          <tr>
+            <td class="main"><b>{{named .Name}}</b>{{if .Person}}<div class="meta"><span>acts as {{who .Person}}</span></div>{{end}}</td>
+            <td><span class="meta"><span class="who"><span class="av">{{initials .CreatedBy}}</span>{{who .CreatedBy}}</span></span></td>
+            <td data-v="{{iso .CreatedAt}}" data-l="made" class="dim">{{ago .CreatedAt}} ago</td>
+            <td data-v="{{isop .LastUsedAt}}" data-l="used" class="dim">{{if .LastUsedAt}}{{ago .LastUsedAt.UTC}} ago{{else}}never{{end}}</td>
+            <td class="n"><form method="post" action="/tokens/{{.ID}}/revoke" data-event="token.revoke" data-confirm="Revoke {{named .Name}}? What uses it stops working."><button type="submit" class="sm quiet">Revoke</button></form></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">No tokens yet.</div>{{end}}
+      </div>
+      <ol class="cfg"><li class="add plain"><details class="new"><summary data-cmd="New token" data-group="Settings"><svg class="i"><use href="#i-plus"/></svg>New token</summary>
+        <form method="post" action="/tokens" class="ed" data-event="token.mint" data-reload>
+        <label class="ph"><span class="word"><span class="d">A token for</span><span class="p">What will use it</span></span><input type="text" class="w-v" name="name" required maxlength="60" placeholder="alertmanager"></label><span class="go"><button type="submit" class="primary sm">Make a token</button></span>
+      </form>
+      </details></li></ol>
+    </div>
+  </section>
+
+  <section class="sec" id="windows">
+    <div class="sh"><h2>Maintenance windows</h2><span class="aside">an alert on a service in a window pages nobody and opens nothing; channels still get it, marked <code>maintenance=true</code></span></div>
+    <div id="windows-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range .Windows}}
+        <li class="plain">
+          <div><b><code>{{.Service}}</code></b>
+            <div class="meta">{{if .StartsAt.After $.Now}}<span class="state wait">Starts in <time data-until="{{iso .StartsAt}}">{{dur (.StartsAt.Sub $.Now)}}</time></span>{{else}}<span class="state active">Quiet for <time data-until="{{iso .EndsAt}}">{{dur (.EndsAt.Sub $.Now)}}</time></span>{{end}}
+              <span>{{clock .StartsAt}} to {{clock .EndsAt}}</span>{{if .Reason}}<span>{{named .Reason}}</span>{{end}}<span class="who"><span class="av">{{initials .CreatedBy}}</span>{{who .CreatedBy}}</span></div></div>
+          <span class="count"></span>
+          <form method="post" action="/windows/{{.ID}}/end" data-event="window.end"><button class="sm" type="submit">End now</button></form>
+        </li>
+      {{end}}
+        <li class="add plain">
+          <details class="new"><summary data-key="W" data-cmd="New maintenance window" data-group="Settings"><svg class="i"><use href="#i-plus"/></svg>New window <kbd>W</kbd></summary>
+          <form method="post" action="/windows" class="ed" data-event="window.add" onsubmit="this.tz_offset.value=new Date().getTimezoneOffset()">
+            <input type="hidden" name="tz_offset" value="0">
+            <label class="ph"><span class="word"><span class="d">Quiet</span><span class="p">Service, or a glob</span></span><input type="text" class="w-k" name="service" required maxlength="120" placeholder="shop-*"></label>
+<label class="ph"><span class="word"><span class="d">from</span><span class="p">From, blank is now</span></span><input type="datetime-local" class="w-t" name="starts_at"></label>
+<label class="ph"><span class="word"><span class="d">until</span><span class="p">Until</span></span><input type="datetime-local" class="w-t" name="ends_at" required></label>
+<label class="ph"><span class="word"><span class="d">because</span><span class="p">Reason</span></span><input type="text" class="w-k" name="reason" maxlength="300" placeholder="Upgrade"></label>
+            <span class="go"><button class="primary sm" type="submit" data-cmd="Open a maintenance window" data-group="Settings">Open window</button></span>
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="heartbeats">
+    <div class="sh"><h2>Heartbeats</h2><span class="aside">a job checks in with <code>POST {{.PublicURL}}/v1/heartbeats/&lt;name&gt;</code>; past its interval and grace, the desk raises <code>HeartbeatMissed</code></span></div>
+    <div id="heartbeats-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range .Heartbeats}}
+        <li class="plain">
+          <div><b class="mono">{{.Name}}</b>
+            <div class="meta">{{if .Late}}<span class="state late">Late</span>{{else if .LastAt}}<span class="state ok">On time</span>{{else}}<span class="state wait">Waiting for its first check-in</span>{{end}}
+              <span>every {{dur .Interval}}{{if .Grace}}, {{dur .Grace}} grace{{end}}</span><span>raises <span class="sev {{.Severity}}">{{cap .Severity}}</span> on <code>{{.ServiceName}}</code></span>
+              {{if .LastAt}}<span>last <time data-since="{{isop .LastAt}}">{{ago .LastAt.UTC}}</time> ago</span>{{end}}<span>late after {{clock .Due}}</span></div></div>
+          <span class="count"></span>
+          <form method="post" action="/heartbeats/{{.Name}}/delete" data-event="heartbeat.delete" data-confirm="Remove the heartbeat {{.Name}}?"><button type="submit" class="sm quiet">Remove</button></form>
+        </li>
+      {{end}}
+        <li class="add plain">
+          <details class="new"><summary data-cmd="New heartbeat" data-group="Settings"><svg class="i"><use href="#i-plus"/></svg>New heartbeat</summary>
+          <form method="post" action="/heartbeats" class="ed" data-event="heartbeat.save">
+            <label class="ph"><span class="word"><span class="d">Job</span><span class="p">Name</span></span><input type="text" class="w-k" name="name" required pattern="[a-z0-9._-]+" placeholder="nightly-backup"></label>
+<label class="ph"><span class="word"><span class="d">on service</span><span class="p">Service, blank is the name</span></span><input type="text" class="w-k" name="service" placeholder="same as job"></label>
+<label class="ph"><span class="word"><span class="d">checks in every</span><span class="p">Every</span></span><input type="text" class="w-n" name="interval" required placeholder="24h"></label>
+<label class="ph"><span class="word"><span class="d">plus grace</span><span class="p">Grace</span></span><input type="text" class="w-n" name="grace" placeholder="30m"></label>
+<label class="ph"><span class="word"><span class="d">else raises</span><span class="p">Severity when late</span></span><select class="w-s" name="severity"><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option></select></label>
+            <span class="go"><button class="primary sm" type="submit">Add heartbeat</button></span>
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec" id="repos">
+    <div class="sh"><h2>Issue repositories</h2><span class="aside">with <code>GITHUB_TOKEN</code> set, an action item opens an issue here and is ticked off when it closes</span></div>
+    <div id="repos-list" data-live class="panel" data-rows>
+      <ol class="cfg">
+      {{range .Repos}}
+        <li class="plain">
+          <details>
+            <summary data-row><span class="say">{{if eq .K "*"}}Every other service{{else}}<code>{{.K}}</code>{{end}} opens issues in <b class="mono">{{.V}}</b></span><span class="edit">Edit</span></summary>
+            <form method="post" action="/settings/lists/repos" class="ed" data-event="settings.row" data-attr="replace">
+              <input type="hidden" name="op" value="replace"><input type="hidden" name="i" value="{{.I}}">
+              <label class="ph"><span class="word"><span class="d">Service</span><span class="p">Service, or * for every other</span></span><input type="text" class="w-k" name="key" value="{{.K}}" required></label><label class="ph"><span class="word"><span class="d">opens issues in</span><span class="p">Repository, owner/repo</span></span><input type="text" class="w-v" name="repo" value="{{.V}}" required></label>
+              <span class="go"><button type="submit" class="primary sm">Save</button></span>
+            </form>
+          </details>
+          <span class="count"></span>
+          {{template "rowtools" .Tools}}
+        </li>
+      {{end}}
+        <li class="add plain">
+          <details class="new"><summary><svg class="i"><use href="#i-plus"/></svg>New repository</summary>
+          <form method="post" action="/settings/lists/repos" class="ed" data-event="settings.row" data-attr="add">
+            <input type="hidden" name="op" value="add">
+            <label class="ph"><span class="word"><span class="d">Service</span><span class="p">Service, or * for every other</span></span><input type="text" class="w-k" name="key" required placeholder="shop or *"></label><label class="ph"><span class="word"><span class="d">opens issues in</span><span class="p">Repository, owner/repo</span></span><input type="text" class="w-v" name="repo" required placeholder="example/shop"></label>
+            <span class="go"><button type="submit" class="primary sm">Add repository</button></span>
+          </form>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+{{end}}
+</main>
+{{end}}

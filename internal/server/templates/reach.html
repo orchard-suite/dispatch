@@ -1,0 +1,100 @@
+{{define "reach"}}
+<div class="reach">
+  <div class="rr"><div><b>SMS number</b><p class="hint">In +country form. Add one only at the person's request; they opt in to texts on their own Me page.</p></div>
+    <input type="tel" name="phone" placeholder="+15555550100" value="{{with .}}{{.Phone}}{{end}}" aria-label="SMS number"></div>
+  <div class="rr"><div><b>Discord account</b><p class="hint">Discord Settings, Advanced, Developer Mode, then Copy User ID.</p></div>
+    <input type="text" name="discord_id" inputmode="numeric" value="{{with .}}{{.DiscordID}}{{end}}" aria-label="Discord account id"></div>
+  <div class="rr"><div><b><span class="sev critical">Page</span></b><p class="hint">Works up a chain until someone acknowledges. Media in order, with <code>+minutes</code> to wait.</p></div>
+    <input type="text" name="rule_page" placeholder="teams, discord, sms+5, email" value="{{with .}}{{index .Form "page"}}{{end}}" aria-label="Page rule"></div>
+  <div class="rr"><div><b><span class="sev warning">Notify</span></b><p class="hint">Waits out quiet hours. Blank keeps the default.</p></div>
+    <input type="text" name="rule_notify" placeholder="teams, discord, email" value="{{with .}}{{index .Form "notify"}}{{end}}" aria-label="Notify rule"></div>
+  <div class="rr"><div><b><span class="sev info">Notice</span></b><p class="hint">Only lands in the list. <code>none</code> sends nothing.</p></div>
+    <input type="text" name="rule_notice" placeholder="none" value="{{with .}}{{index .Form "notice"}}{{end}}" aria-label="Notice rule"></div>
+  <div class="rr"><div><b>Quiet hours</b><p class="hint">Anything but a page waits until they end. A page never waits.</p></div>
+    <div class="qh"><input type="time" name="quiet_from" value="{{with .}}{{with .Quiet}}{{.From}}{{end}}{{end}}" aria-label="Quiet from"><span class="dim">to</span><input type="time" name="quiet_to" value="{{with .}}{{with .Quiet}}{{.To}}{{end}}{{end}}" aria-label="Quiet until"><input type="text" name="quiet_zone" placeholder="America/New_York" value="{{with .}}{{with .Quiet}}{{.Zone}}{{end}}{{end}}" aria-label="Quiet hours time zone"></div></div>
+</div>
+{{end}}
+
+{{define "reach-style"}}
+.reach > .rr { display:grid; grid-template-columns:minmax(0, 1fr) minmax(220px, 340px); gap:6px 24px; align-items:center; padding:12px 0; }
+.reach > .rr + .rr { border-top:1px solid var(--line); }
+.reach b { font-weight:650; display:block; }
+.reach .qh { display:grid; grid-template-columns:1fr auto 1fr; gap:6px; align-items:center; }
+.reach .qh input[name=quiet_zone] { grid-column:1 / -1; }
+@media (max-width:860px) { .reach > .rr { grid-template-columns:1fr; } }
+{{end}}
+
+
+{{define "reachrows"}}{{$me := .}}
+<ol class="cfg rr-list">
+  <li><details>
+    <summary data-row><span class="say">The desk calls you <b>{{who $me.Email}}</b></span><span class="edit">Edit</span></summary>
+    <form method="post" action="/me" class="ed" data-event="me.save" data-attr="name">
+      <label class="ph"><span class="word">Name</span><input type="text" class="w-v" name="name" maxlength="80" value="{{$me.Name}}"></label>
+      <span class="go"><button type="submit" class="primary sm">Save</button></span>
+    </form></details></li>
+  <li><details>
+    <summary data-row><span class="say">{{if $me.Phone}}Texts go to <b>{{$me.Phone}}</b>{{with $me.SMSConsentAt}} · you opted in on <time datetime="{{isop .}}">{{.Format "January 2, 2006"}}</time>{{end}}{{else}}<b>No SMS number</b>, so nothing is texted{{end}}</span><span class="edit">Edit</span></summary>
+    <form method="post" action="/me" class="ed" data-event="me.save" data-attr="phone">
+      <label class="ph"><span class="word">SMS number</span><input type="tel" class="w-v" name="phone" placeholder="+15555550100" value="{{$me.Phone}}"></label>
+      <label class="check optin"><input type="checkbox" name="sms_consent" value="yes"> <b>Text me alerts at this number.</b></label>
+      <span class="effect hint fine">By checking this box, you agree to receive operational alert text messages from {{$me.OptIn.Sender}} at this number. Message frequency varies with on-call schedules and incidents. Message and data rates may apply. Reply STOP to opt out or HELP for help.{{with $me.OptIn.Policy}} <a class="link" href="{{.}}" target="_blank" rel="noopener">SMS policy</a>{{end}}</span>
+      <span class="effect hint">In +country form. Blank stops texts and needs no box.</span>
+      <span class="go"><button type="submit" class="primary sm">Save</button></span>
+    </form></details></li>
+  <li><details>
+    <summary data-row><span class="say">{{if $me.DiscordID}}Discord messages go to account <b class="mono">{{$me.DiscordID}}</b>{{else}}<b>No Discord account</b>, so Discord sends nothing{{end}}</span><span class="edit">Edit</span></summary>
+    <form method="post" action="/me" class="ed" data-event="me.save" data-attr="discord">
+      <label class="ph"><span class="word">Discord account id</span><input type="text" class="w-v" name="discord_id" inputmode="numeric" value="{{$me.DiscordID}}"></label>
+      <span class="go"><button type="submit" class="primary sm">Save</button></span>
+      <span class="effect hint">Discord Settings, Advanced, Developer Mode, then Copy User ID.</span>
+    </form></details></li>
+  {{range $me.Rules}}{{$w := print .Weight}}
+  <li><details>
+    <summary data-row><span class="say">A <span class="sev {{if eq $w "page"}}critical{{else if eq $w "notify"}}warning{{else}}info{{end}}">{{$w}}</span> {{if eq .Text "none"}}<b>sends you nothing</b>, it only lands in your list{{else}}reaches you by <b>{{.Say}}</b>{{end}}{{if .Default}} <span class="dim">(the default)</span>{{end}}</span><span class="edit">Edit</span></summary>
+    <form method="post" action="/me" class="ed" data-event="me.save" data-attr="rule">
+      <label class="ph"><span class="word">{{cap $w}} by</span><input type="text" class="w-l" name="rule_{{$w}}" value="{{index $me.Form $w}}" placeholder="{{if eq $w "notice"}}none{{else}}teams, sms+5, email{{end}}"></label>
+      <span class="go"><button type="submit" class="primary sm">Save</button></span>
+      <span class="effect hint">{{if eq $w "page"}}Works up a chain until someone acknowledges. {{else if eq $w "notify"}}Waits out your quiet hours. {{else}}Only lands in your list. {{end}}Media in order, <code>+minutes</code> to wait; <code>none</code> sends nothing; blank is the default.</span>
+    </form></details></li>
+  {{end}}
+  <li><details>
+    <summary data-row><span class="say">{{with $me.Quiet}}Quiet hours are <b>{{.From}} to {{.To}}</b>{{if .Zone}} in {{.Zone}}{{end}}{{else}}<b>No quiet hours</b>, so a notify is sent at once{{end}}</span><span class="edit">Edit</span></summary>
+    <form method="post" action="/me" class="ed" data-event="me.save" data-attr="quiet">
+      <label class="ph"><span class="word">From</span><input type="time" class="w-t" name="quiet_from" value="{{with $me.Quiet}}{{.From}}{{end}}"></label>
+      <label class="ph"><span class="word">to</span><input type="time" class="w-t" name="quiet_to" value="{{with $me.Quiet}}{{.To}}{{end}}"></label>
+      <label class="ph"><span class="word">in</span><input type="text" class="w-k" name="quiet_zone" placeholder="America/New_York" value="{{with $me.Quiet}}{{.Zone}}{{end}}"></label>
+      <span class="go"><button type="submit" class="primary sm">Save</button></span>
+      <span class="effect hint">A notify waits until they end. A page never waits. Both blank turns them off.</span>
+    </form></details></li>
+</ol>
+{{end}}
+
+{{define "rows-style"}}
+.cfg { list-style:none; margin:0; padding:0; }
+.cfg > li { padding:10px 16px; }
+.cfg > li + li { border-top:1px solid var(--line); }
+.cfg summary { list-style:none; cursor:pointer; line-height:24px; overflow-wrap:anywhere; }
+.cfg summary::-webkit-details-marker { display:none; }
+.cfg summary:hover .say { text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; }
+.cfg summary .edit { color:var(--faint); font-size:12px; margin-left:8px; white-space:nowrap; }
+.cfg details[open] summary .edit { display:none; }
+.ed { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-top:8px; }
+.ed .ph { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+.ed .word { color:var(--dim); font-size:13px; white-space:nowrap; }
+.ed .go { margin-left:auto; display:flex; gap:8px; }
+.ed .effect { flex-basis:100%; font-size:13px; color:var(--dim); }
+.ed .optin { flex-basis:100%; display:flex; gap:8px; align-items:center; }
+.ed .optin b { font-weight:620; }
+.ed .fine { font-size:12.5px; line-height:1.45; }
+.ed input.w-k { width:170px; } .ed input.w-v { width:240px; } .ed input.w-l { width:min(100%, 360px); } .ed input.w-t { width:auto; }
+@media (max-width:860px) {
+  .cfg > li { padding:6px 12px; }
+  .cfg summary { min-height:var(--tap); padding-top:10px; }
+  .ed { flex-direction:column; align-items:stretch; gap:12px; }
+  .ed .ph { flex-direction:column; align-items:stretch; gap:4px; }
+  .ed .word { font-size:12.5px; font-weight:620; color:var(--ink-2); white-space:normal; }
+  .ed input.w-k, .ed input.w-v, .ed input.w-l, .ed input.w-t { width:100%; }
+  .ed .go { margin-left:0; justify-content:flex-end; }
+}
+{{end}}

@@ -1,0 +1,236 @@
+{{define "title"}}Notifications · dispatch{{end}}
+{{define "style"}}
+.flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--dim); margin-top:8px; }
+.flow b { font-weight:620; color:var(--ink-2); }
+.tag { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px; font-size:12.5px; font-weight:600; background:var(--sunk); color:var(--ink-2); box-shadow:inset 0 0 0 1px var(--line); white-space:nowrap; }
+.tag.sent, .tag.acknowledged, .tag.on { background:var(--ok-w); color:var(--ok-ink); box-shadow:none; }
+.tag.failed, .tag.active { background:var(--crit-w); color:var(--crit-ink); box-shadow:none; }
+.tag.pending, .tag.paused, .tag.exhausted, .tag.skipped { background:var(--warn-w); color:var(--warn-ink); box-shadow:none; }
+.tbl td.main { overflow-wrap:anywhere; }
+.tbl td.main b { font-weight:620; }
+.tbl .err { font-size:12.5px; color:var(--crit-ink); margin-top:3px; overflow-wrap:anywhere; }
+.tbl code { font-size:12px; }
+.ans b { font-weight:640; } .ans b.ok { color:var(--ok-ink); } .ans b.bad { color:var(--crit-ink); }
+.ans small { display:block; color:var(--dim); font-size:12px; }
+.whom { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+.whom .av { width:22px; height:22px; font-size:12px; }
+.ends { display:flex; gap:4px; justify-content:flex-end; flex-wrap:wrap; }
+.topics { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 16px; }
+.topics code { color:var(--dim); }
+dialog form .db { display:flex; flex-direction:column; gap:12px; max-height:min(70vh, 640px); overflow-y:auto; }
+dialog.wide { width:min(720px, calc(100vw - 24px)); }
+.warn { padding:10px 16px; font-size:13px; color:var(--warn-ink); background:var(--warn-w); border-radius:10px 10px 0 0; }
+@media (max-width:860px) {
+  .topics { grid-template-columns:1fr; }
+  .tbl.stack thead { display:none; }
+  .tbl.stack tr { display:flex; flex-wrap:wrap; gap:6px 14px; padding:12px; border-top:1px solid var(--line); }
+  .tbl.stack tbody tr:first-child { border-top:0; }
+  .tbl.stack td { display:block; padding:0; border:0; }
+  .tbl.stack td.main { flex-basis:100%; }
+  .tbl.stack td.n { text-align:left; }
+}
+{{end}}
+{{define "answer"}}{{if .Status}}{{if lt .Status 300}}<b class="ok">Delivered</b>{{else if lt .Status 500}}<b class="bad">Refused</b>{{else}}<b class="bad">Failed</b>{{end}}{{else if .LastError}}<b class="bad">Failed</b>{{else}}<b>Not tried yet</b>{{end}}<small>{{if .Status}}code {{.Status}}, {{end}}{{.Attempts}} {{if eq .Attempts 1}}try{{else}}tries{{end}}{{if eq (print .State) "pending"}}{{if .Attempts}}, next {{clock .NextAt}}{{end}}{{end}}</small>{{end}}
+{{define "content"}}
+<main class="page">
+  <div class="ph"><div><h1>Notifications</h1><p class="lede">Any product sends dispatch what happened, as an event. A subscription sends the events it takes to a channel or to people. Every delivery is kept with the answer it got; one that fails is tried again.</p>
+    <div class="flow" aria-hidden="true"><b>Event</b><span>to</span><b>Subscription</b><span>to</span><b>Channel</b> or <b>people</b><span>to</span><b>Delivery</b></div></div></div>
+  {{if .Done}}<div class="flash ok" data-flash>{{.Done}}</div>{{end}}
+  {{if .Bad}}<div class="flash bad" data-message>{{cap .Bad}}.</div>{{end}}
+
+  <section class="sec">
+    <div class="sh"><h2>Channels</h2><span class="aside">{{len .Channels}}</span>
+      {{if .Keeps}}<span class="tools"><button type="button" class="sm" data-dialog="add-webhook" data-cmd="Add a webhook channel" data-group="Notifications">Add webhook</button>{{if .Bot}}<button type="button" class="sm" data-dialog="add-bot" data-cmd="Add a Teams bot channel" data-group="Notifications">Add Teams bot channel</button>{{end}}{{if .Discord}}<button type="button" class="sm" data-dialog="add-discord" data-cmd="Add a Discord bot channel" data-group="Notifications">Add Discord bot channel</button>{{end}}</span>{{end}}</div>
+    <div class="panel" id="channels" data-live>
+      {{if not .Keeps}}<div class="warn">Set <code>SECRET_KEY</code> to add a channel: its URL is a secret, and dispatch keeps it sealed.</div>{{end}}
+      {{if .Channels}}
+      <table class="tbl stack" id="channels-table">
+        <thead><tr><th data-sort>Name</th><th data-sort>Kind</th><th>Signing</th><th data-sort>Added</th><th></th></tr></thead>
+        <tbody>
+        {{range .Channels}}
+          <tr>
+            <td class="main"><b>{{.Name}}</b></td>
+            <td><span class="tag">{{.Kind}}</span></td>
+            <td class="dim">{{if eq .Kind "webhook"}}{{if .Signs}}Signed{{if .Retiring}}, old secret still signing{{end}}{{else}}Not signed{{end}}{{end}}</td>
+            <td data-v="{{iso .CreatedAt}}"><span class="whom"><span class="av">{{initials .CreatedBy}}</span>{{who .CreatedBy}}, {{ago .CreatedAt}} ago</span></td>
+            <td class="n"><div class="ends">
+              <form method="post" action="/notifications/channels/{{.ID}}/test" data-event="channel.test"><button class="sm" type="submit">Send a test</button></form>
+              {{if eq .Kind "webhook"}}<form method="post" action="/notifications/channels/{{.ID}}/rotate" data-event="channel.rotate"><button class="sm quiet" type="submit">{{if .Signs}}New secret{{else}}Sign its posts{{end}}</button></form>
+              {{if .Retiring}}<form method="post" action="/notifications/channels/{{.ID}}/drop-old" data-event="channel.drop_old"><button class="sm quiet" type="submit">Drop the old secret</button></form>{{end}}{{end}}
+              <form method="post" action="/notifications/channels/{{.ID}}/delete" data-event="channel.delete" data-confirm="Remove the channel {{.Name}}?"><button type="submit" class="sm quiet">Remove</button></form>
+            </div></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">No channels. A channel is a Teams or Discord channel, or a webhook, that events post to.</div>{{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Subscriptions</h2><span class="aside">{{len .Subscriptions}}</span><span class="tools"><button type="button" class="sm" data-dialog="add-sub" data-cmd="Add a subscription" data-group="Notifications">Add subscription</button></span></div>
+    <div class="panel" id="subscriptions" data-live>
+      {{if .Subscriptions}}
+      <table class="tbl stack" id="subs-table">
+        <thead><tr><th data-sort>To</th><th>Takes</th><th>About</th><th>Only</th><th data-sort>State</th><th></th></tr></thead>
+        <tbody>
+        {{range .Subscriptions}}
+          <tr>
+            <td class="main"><b>{{.Channel}}</b></td>
+            <td>{{range $i, $t := .Topics}}{{if $i}}, {{end}}<code>{{$t}}</code>{{end}}</td>
+            <td class="dim">{{if .Anchor}}<code>{{.Anchor}}</code> and what reaches it{{else}}anything{{end}}</td>
+            <td class="dim">{{if .Producers}}from {{range $i, $p := .Producers}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}{{if and .Producers .Match}}; {{end}}{{if .Match}}where <code>{{.Match}}</code>{{end}}{{if not (or .Producers .Match)}}every product{{end}}</td>
+            <td><span class="tag{{if .Paused}} paused{{else}} on{{end}}">{{if .Paused}}paused{{else}}sending{{end}}</span></td>
+            <td class="n"><div class="ends">
+              <form method="post" action="/notifications/subscriptions/{{.ID}}/pause" data-event="subscription.pause"><input type="hidden" name="paused" value="{{if .Paused}}0{{else}}1{{end}}"><button class="sm" type="submit">{{if .Paused}}Resume{{else}}Pause{{end}}</button></form>
+              <form method="post" action="/notifications/subscriptions/{{.ID}}/delete" data-event="subscription.delete" data-confirm="Remove this subscription?"><button type="submit" class="sm quiet">Remove</button></form>
+            </div></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">Nothing is sent. A subscription says which events go to a channel, a person, a group, or a chain.</div>{{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Pages</h2><span class="aside">chains working up to an acknowledgement</span></div>
+    <div class="panel" id="pages" data-live>
+      {{if .Pages}}
+      <table class="tbl stack" id="pages-table">
+        <thead><tr><th>About</th><th data-sort>State</th><th>Chain</th><th class="n">Step</th><th data-sort class="n">Started</th></tr></thead>
+        <tbody>
+        {{range .Pages}}
+          <tr data-row data-href="/pages/{{.ID}}" tabindex="0">
+            <td class="main"><a class="link" href="/pages/{{.ID}}">{{named .Title}}</a></td>
+            <td><span class="tag {{.State}}">{{if eq .State "active"}}paging{{else}}{{.State}}{{end}}</span>{{if .AcknowledgedBy}} <span class="dim">by {{who .AcknowledgedBy}}</span>{{end}}</td>
+            <td>{{.ChainName}}</td>
+            <td class="n dim">{{inc .Step}} of {{len .Steps}}</td>
+            <td class="n dim" data-v="{{iso .StartedAt}}" title="{{when .StartedAt}}">{{ago .StartedAt}} ago</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">No pages. An event addressed to a chain starts one.</div>{{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Messages to people</h2><span class="aside">newest first</span></div>
+    <div class="panel" id="messages" data-live>
+      {{if not .Mails}}<div class="warn">This desk sends no email: set <code>MAIL_FROM</code> and <code>MAIL_GRAPH_APP_ID</code> or <code>MAIL_SMTP_URL</code>.</div>{{end}}
+      {{if .Messages}}
+      <table class="tbl stack" id="messages-table">
+        <thead><tr><th>Event</th><th data-sort>To</th><th data-sort>State</th><th>Answer</th><th data-sort class="n">When</th></tr></thead>
+        <tbody>
+        {{range .Messages}}
+          <tr>
+            <td class="main">{{named .Title}} <code class="dim">{{.Kind}}</code>{{if .PageID}} <a class="link" href="/pages/{{.PageID}}">page {{.PageID}}</a>{{end}}{{if .LastError}}<div class="err">{{named .LastError}}</div>{{end}}</td>
+            <td><span class="whom"><span class="av">{{initials .Person}}</span>to {{who .Person}} by {{if eq (print .Medium) "sms"}}SMS{{else}}{{cap .Medium}}{{end}}</span></td>
+            <td><span class="tag {{.State}}">{{.State}}</span></td>
+            <td class="ans">{{template "answer" .}}</td>
+            <td class="n dim" data-v="{{iso .CreatedAt}}" title="{{when .CreatedAt}}">{{ago .CreatedAt}} ago</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">No messages yet. They show here as events reach people.</div>{{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>Deliveries to channels</h2><span class="aside">newest first</span></div>
+    <div class="panel" id="deliveries" data-live>
+      {{if .Deliveries}}
+      <table class="tbl stack" id="deliveries-table">
+        <thead><tr><th>Event</th><th data-sort>Channel</th><th data-sort>State</th><th>Answer</th><th data-sort class="n">When</th></tr></thead>
+        <tbody>
+        {{range .Deliveries}}
+          <tr>
+            <td class="main">{{named .Title}} <code class="dim">{{.Kind}}</code>{{if .LastError}}<div class="err">{{named .LastError}}</div>{{end}}</td>
+            <td>to {{.Channel}}</td>
+            <td><span class="tag {{.State}}">{{.State}}</span></td>
+            <td class="ans">{{template "answer" .}}</td>
+            <td class="n dim" data-v="{{iso .CreatedAt}}" title="{{when .CreatedAt}}">{{ago .CreatedAt}} ago</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      {{else}}<div class="empty">No deliveries yet. They show here as events arrive.</div>{{end}}
+    </div>
+  </section>
+
+  {{if .Keeps}}
+  <dialog id="add-webhook" data-modal aria-label="Add a webhook channel">
+    <form method="post" action="/notifications/channels" data-event="channel.add" data-reload>
+      <div class="dh"><h2>Add a webhook channel</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <div class="fields">
+          <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="Platform alerts"></label>
+          <label class="field"><span>Kind</span><select name="kind">{{range .Kinds}}<option value="{{.}}">{{cap .}}</option>{{end}}</select></label>
+        </div>
+        <label class="field"><span>URL</span><input type="url" name="url" required placeholder="https://..." autocomplete="off">
+          <small>For Teams, the channel's Workflows webhook ("Post to a channel when a webhook request is received"); for Discord, the channel's webhook (Edit Channel, Integrations, Webhooks). It is kept sealed and never shown again.</small></label>
+        <div class="actions"><button class="primary" type="submit">Add the channel</button></div>
+      </div>
+    </form>
+  </dialog>
+  {{if .Bot}}
+  <dialog id="add-bot" data-modal aria-label="Add a Teams bot channel">
+    <form method="post" action="/notifications/channels" data-event="channel.add" data-reload>
+      <input type="hidden" name="kind" value="bot">
+      <div class="dh"><h2>Add a Teams bot channel</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+      {{if .BotChannels}}
+        <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="Platform Engineering / Approvals"></label>
+        <label class="field"><span>Channel</span><select name="bot_channel">{{range .BotChannels}}<option value="{{.Target}}">{{.Name}}</option>{{end}}</select><small>A channel of a team the Teams bot is in. Its cards can approve and decline.</small></label>
+        <div class="actions"><button class="primary" type="submit">Add the bot channel</button></div>
+      {{else}}
+        <div class="empty"><b>The Teams bot is in no team yet</b>Add the Platform app to a team in Teams, and its channels show here.</div>
+      {{end}}
+      </div>
+    </form>
+  </dialog>
+  {{end}}
+  {{if .Discord}}
+  <dialog id="add-discord" data-modal aria-label="Add a Discord bot channel">
+    <form method="post" action="/notifications/channels" data-event="channel.add" data-reload>
+      <input type="hidden" name="kind" value="discord-bot">
+      <div class="dh"><h2>Add a Discord bot channel</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+      {{if .DiscordChannels}}
+        <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="Platform / alerts"></label>
+        <label class="field"><span>Channel</span><select name="discord_channel">{{range .DiscordChannels}}<option value="{{.ID}}">{{.Server}} / {{.Name}}</option>{{end}}</select><small>A channel of a server the Discord bot is in.</small></label>
+        <div class="actions"><button class="primary" type="submit">Add the Discord channel</button></div>
+      {{else}}
+        <div class="empty"><b>The Discord bot is in no server yet</b>Invite it to a server, and its channels show here.</div>
+      {{end}}
+      </div>
+    </form>
+  </dialog>
+  {{end}}
+  {{end}}
+
+  <dialog id="add-sub" class="wide" data-modal aria-label="Add a subscription">
+    <form method="post" action="/notifications/subscriptions" data-event="subscription.add" data-reload>
+      <div class="dh"><h2>Add a subscription</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="db">
+        <div class="fields">
+          <label class="field"><span>Channel</span><select name="channel"><option value="">None</option>{{range .Channels}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></label>
+          <label class="field"><span>Or a person, group, or chain</span><input type="text" name="to" placeholder="chain:platform-oncall"><small>As <code>person:address</code>, <code>group:slug</code>, or <code>chain:slug</code>.</small></label>
+        </div>
+        <fieldset><legend>Topics</legend>
+          <div class="topics">{{range .Topics}}<label class="check"><input type="checkbox" name="topic" value="{{.Kind}}"><span>{{.Means}} <code>{{.Kind}}</code></span></label>{{end}}</div>
+        </fieldset>
+        <label class="field"><span>Other topics</span><input type="text" name="other_topics"><small>Globs such as <code>build.*</code> or <code>*</code>.</small></label>
+        <label class="field"><span>About</span><input type="text" name="anchor" placeholder="program:4242"><small>A catalog id. It takes events about that entity and anything that reaches it through its relations. Empty takes events about anything.</small></label>
+        <div class="fields">
+          <label class="field"><span>Only from these products</span><input type="text" name="producers" placeholder="orrery"><small>The names of their tokens. Empty is any.</small></label>
+          <label class="field"><span>Only where labels match</span><input type="text" name="match" placeholder="env=Prod"><small>As <code>label=glob</code>.</small></label>
+        </div>
+        <div class="actions"><button class="primary" type="submit">Add the subscription</button></div>
+      </div>
+    </form>
+  </dialog>
+</main>
+{{end}}

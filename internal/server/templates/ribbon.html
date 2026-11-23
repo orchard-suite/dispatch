@@ -1,0 +1,46 @@
+{{/* The alert strip: an incident's alerts on one time axis, a lane per
+alert or per value of the label they differ by, with its moves, notes, and
+changes marked under them. A page puts {{template "ribbon-style"}} in its
+style block, then {{template "ribbon" .}} and {{template "ribbon-legend" .}}
+with a StripView (incidentStrip). */}}
+{{define "ribbon-style"}}
+.rib-legend { display:flex; gap:4px 14px; flex-wrap:wrap; font-size:12px; color:var(--dim); }
+.rib-legend span { display:inline-flex; align-items:center; gap:6px; }
+.rib-legend i { display:inline-block; width:10px; height:10px; border-radius:2px; background:var(--crit); }
+.rib-legend i.warning { background:var(--warn); } .rib-legend i.info { background:var(--info); }
+.rib-legend i.clr { width:3px; background:var(--dim); } .rib-legend i.mv { border-radius:50%; background:var(--accent); } .rib-legend i.chg { width:8px; height:8px; transform:rotate(45deg); background:var(--ink-2); }
+.rib { container-type:inline-size; }
+.rib .lane { display:grid; grid-template-columns:minmax(0, 1fr); gap:2px 12px; align-items:center; margin-top:6px; }
+.rib .lane:first-child { margin-top:0; }
+.rib .ln { font:12px/1.35 var(--mono); color:var(--ink-2); min-width:0; overflow-wrap:break-word; }
+.rib .lane.more .ln { color:var(--dim); font-family:var(--font); }
+.rib .bar { position:relative; height:10px; border-radius:3px; background:var(--cell); }
+.rib .bar i { position:absolute; top:0; bottom:0; min-width:3px; border-radius:2px; background:var(--crit); }
+.rib .bar.warning i { background:var(--warn); } .rib .bar.info i { background:var(--info); }
+.rib .bar i.clr { background:var(--dim); top:2px; bottom:2px; min-width:2px; width:2px; }
+.rib .lane.more .bar i { opacity:.6; }
+.rib .in { position:absolute; inset:0 6px; }
+.rib .one { font-size:13px; color:var(--ink-2); margin:0 0 6px; }
+.rib .one b { color:var(--ink); font-weight:640; font-variant-numeric:tabular-nums; }
+.rib[data-single] .bar { height:4px; }
+.rib .marks { position:relative; height:14px; margin-top:4px; }
+.rib .marks i { position:absolute; top:2px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--panel); }
+.rib .marks i.acknowledged { background:var(--warn); } .rib .marks i.mitigated { background:var(--info); } .rib .marks i.resolved { background:var(--ok); } .rib .marks i.reopened { background:var(--crit); }
+.rib .marks i.note { width:8px; height:8px; margin-left:-4px; top:3px; background:var(--panel); box-shadow:inset 0 0 0 2px var(--accent); }
+.rib .marks i.chg { width:8px; height:8px; margin-left:-4px; top:3px; border-radius:1px; transform:rotate(45deg); background:var(--ink-2); }
+.rib .ticks { position:relative; height:18px; margin-top:2px; font:12px var(--mono); color:var(--dim); }
+.rib .ticks span { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; }
+.rib .ticks span::before { content:""; position:absolute; left:50%; top:-20px; height:4px; border-left:1px solid var(--line-2); }
+@container (min-width:560px) { .rib .lane { grid-template-columns:minmax(0, 26%) minmax(0, 1fr); } .rib .lane.axis > :first-child { grid-column:2; } .rib[data-solo] .lane { grid-template-columns:minmax(0, 1fr); } .rib[data-solo] .lane.axis > :first-child { grid-column:1; } }
+@media (max-width:860px) { .rib .ticks span:nth-child(even) { display:none; } }
+{{end}}
+
+{{define "ribbon"}}<div class="rib"{{if .Single}} data-single{{end}}{{if le (len .Lanes) 1}} data-solo{{end}} role="img" aria-label="{{if .Single}}One alert firing since {{clock .Since}}{{else}}{{len .Lanes}} alert lane{{if ne (len .Lanes) 1}}s{{end}}{{end}}, with its moves and changes, from {{clock .Ribbon.From}} to {{if .Resolved}}{{clock .Ribbon.To}}{{else}}now{{end}}">
+  {{if .Single}}<p class="one"><span class="firing">Firing since {{.Since.UTC.Format "15:04"}}</span>, for <b><time data-since="{{iso .Since}}">{{dur .For}}</time></b></p>
+  <div class="lane axis"><div class="bar {{.Severity}}"><div class="in"><i style="left:0%; width:100%"></i></div></div></div>
+  {{else}}{{range .Lanes}}<div class="lane{{if .More}} more{{end}}"><span class="ln">{{breakable .Label}}</span><div class="bar {{$.Severity}}"><div class="in">{{range .Spans}}<i class="{{if .Cleared}}clr{{end}}" style="left:{{printf "%.2f" .Left}}%; width:{{printf "%.2f" .Width}}%" title="{{.Title}}"></i>{{end}}</div></div></div>{{end}}{{end}}
+  {{if or .Ribbon.Marks .Ribbon.Changes}}<div class="lane axis"><div class="marks"><div class="in">{{range .Ribbon.Marks}}<i class="{{.Kind}}" style="left:{{printf "%.2f" .Left}}%" title="{{cap .Kind}} {{clock .At}}"></i>{{end}}{{range .Ribbon.Changes}}<i class="chg" style="left:{{printf "%.2f" .Left}}%" title="{{.Title}} {{clock .At}}"></i>{{end}}</div></div></div>{{end}}
+  <div class="lane axis"><div class="ticks"><div class="in">{{range .Ticks}}<span style="left:{{printf "%.2f" .Left}}%">{{.Label}}</span>{{end}}</div></div></div>
+</div>{{end}}
+
+{{define "ribbon-legend"}}<span class="rib-legend">{{if .HasFired}}<span><i class="{{.Severity}}"></i>firing</span>{{end}}{{if .HasCleared}}<span><i class="clr"></i>cleared</span>{{end}}{{if .Ribbon.Marks}}<span><i class="mv"></i>a move or note</span>{{end}}{{if .Ribbon.Changes}}<span><i class="chg"></i>a change</span>{{end}}</span>{{end}}

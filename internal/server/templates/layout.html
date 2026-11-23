@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>{{block "title" .}}dispatch{{end}}</title>
+{{template "install"}}
+<style>
+:root {
+  color-scheme: light dark;
+  --bg:#f7f7f5; --rail:#efefec; --panel:#ffffff; --sunk:#f1f1ee; --line:#e3e3de; --line-2:#cfcfc8; --hover:#ebebe7; --sel:#e7eaf8;
+  --ink:#16161a; --ink-2:#3b3b43; --dim:#5b5b64; --faint:#6b6b74;
+  --accent:#2f47d0; --accent-ink:#2a3fb8; --on-accent:#ffffff; --accent-w:#e8ebfb;
+  --crit:#c3232f; --crit-ink:#a51b27; --crit-w:#fbe7e8; --on-crit:#ffffff;
+  --warn:#b26404; --warn-ink:#874b00; --warn-w:#fbf0db; --on-warn:#1d1203;
+  --info:#2c63c8; --info-ink:#2252a8; --info-w:#e7eefa; --on-info:#ffffff;
+  --ok:#137446; --ok-ink:#0f6239; --ok-w:#e0f2e7; --on-ok:#ffffff;
+  --cell:#e2e2dc; --cell-2:#d5d5ce;
+  --font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --mono:ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --tap:34px; --rail-w:236px; --props-w:300px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#121214; --rail:#0d0d0f; --panel:#18181b; --sunk:#141417; --line:#27272d; --line-2:#383840; --hover:#202025; --sel:#1e2338;
+    --ink:#ececef; --ink-2:#cfcfd6; --dim:#a8a8b2; --faint:#9a9aa4;
+    --accent:#8c9dff; --accent-ink:#a9b6ff; --on-accent:#0b0b14; --accent-w:#1d2242;
+    --crit:#ff5f69; --crit-ink:#ff8d95; --crit-w:#371619; --on-crit:#1c0507;
+    --warn:#f0a43c; --warn-ink:#f6bb66; --warn-w:#302410; --on-warn:#1d1203;
+    --info:#7aa7ff; --info-ink:#a2c0ff; --info-w:#16223b; --on-info:#08101f;
+    --ok:#4cc58b; --ok-ink:#76d9a8; --ok-w:#11291d; --on-ok:#04140b;
+    --cell:#2b2b31; --cell-2:#36363e;
+  }
+}
+* { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 var(--font); -webkit-font-smoothing:antialiased; }
+a { color:inherit; text-decoration:none; }
+a.link, .md a { color:var(--accent-ink); }
+a.link:hover, .md a:hover { text-decoration:underline; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+h1, h2, h3, p { margin:0; }
+code, .mono { font-family:var(--mono); font-size:12.5px; overflow-wrap:anywhere; }
+p code, .hint code, td code, li code { background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line); border-radius:4px; padding:0 4px; }
+.num { font-variant-numeric:tabular-nums; }
+.nw, time { white-space:nowrap; }
+.dim { color:var(--dim); } .small { font-size:13px; }
+svg.i { width:16px; height:16px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+kbd { font:600 11.5px/1 var(--mono); color:var(--dim); border:1px solid var(--line-2); border-bottom-width:2px; border-radius:5px; padding:2px 5px; background:var(--panel); white-space:nowrap; }
+
+/* ---------- shell: rail + work area ---------- */
+.shell { display:grid; grid-template-columns:var(--rail-w) minmax(0, 1fr); min-height:100vh; background:linear-gradient(to right, var(--rail) calc(var(--rail-w) - 1px), var(--line) calc(var(--rail-w) - 1px), var(--line) var(--rail-w), transparent var(--rail-w)); }
+.rail { position:sticky; top:0; height:100vh; display:flex; flex-direction:column; background:var(--rail); border-right:1px solid var(--line); padding:14px 10px 12px; overflow-y:auto; }
+.brand { display:flex; align-items:center; gap:9px; padding:2px 8px 12px; font-weight:750; font-size:15px; letter-spacing:-.02em; }
+.brand-mark { width:22px; height:22px; border-radius:6px; background:var(--ink); color:var(--bg); display:grid; place-items:center; }
+.brand-mark svg { width:13px; height:13px; stroke-width:2.4; }
+.brand .live-dot { margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--line-2); }
+.brand .live-dot.on { background:var(--ok); }
+.find { display:flex; align-items:center; gap:8px; width:100%; min-height:34px; padding:0 8px 0 10px; margin-bottom:14px; border:1px solid var(--line-2); border-radius:8px; background:var(--panel); color:var(--dim); font:inherit; font-size:13px; cursor:pointer; }
+.find:hover { border-color:var(--dim); color:var(--ink-2); }
+.find kbd { margin-left:auto; color:var(--ink-2); border-color:var(--dim); }
+.rail nav { display:flex; flex-direction:column; gap:1px; }
+.rail h6 { margin:14px 0 4px; padding:0 10px; font-size:11.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); }
+.rail nav a { display:flex; align-items:center; gap:10px; min-height:32px; padding:0 10px; border-radius:7px; color:var(--ink-2); font-weight:530; }
+.rail nav a:hover { background:var(--hover); color:var(--ink); }
+.rail nav a.on { background:var(--panel); color:var(--ink); font-weight:640; box-shadow:0 0 0 1px var(--line); }
+.rail nav a .n { margin-left:auto; font:650 12px/1 var(--font); font-variant-numeric:tabular-nums; color:var(--dim); }
+.rail nav a .n.hot { color:var(--on-crit); background:var(--crit); border-radius:999px; padding:3px 7px; }
+.rail .foot { margin-top:auto; padding-top:14px; display:flex; flex-direction:column; gap:8px; }
+.pill-oncall { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; background:var(--panel); border:1px solid var(--line); font-size:13px; line-height:1.3; }
+.pill-oncall .d { width:8px; height:8px; border-radius:50%; background:var(--line-2); flex-shrink:0; }
+.pill-oncall.me .d { background:var(--ok); box-shadow:0 0 0 3px var(--ok-w); }
+.pill-oncall b { font-weight:640; display:block; }
+.pill-oncall small { color:var(--dim); font-size:12px; }
+.me-link { display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:7px; color:var(--ink-2); font-weight:560; }
+.me-link:hover, .me-link.on { background:var(--hover); color:var(--ink); }
+.av { width:24px; height:24px; border-radius:50%; background:var(--accent-w); color:var(--accent-ink); display:inline-grid; place-items:center; font-size:12px; font-weight:750; letter-spacing:0; flex-shrink:0; }
+.av.lg { width:30px; height:30px; font-size:12px; }
+.av.none { background:transparent; color:var(--crit-ink); box-shadow:inset 0 0 0 1.5px var(--crit); }
+.work { min-width:0; display:flex; flex-direction:column; }
+.topbar { display:none; }
+.tabbar { display:none; }
+
+/* ---------- page frame ---------- */
+.page { padding:22px 32px 64px; width:100%; max-width:1440px; }
+.page.wide { max-width:none; }
+.ph { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px 20px; margin-bottom:18px; }
+.ph h1 { font-size:22px; font-weight:720; letter-spacing:-.02em; line-height:1.25; }
+.ph .lede { color:var(--dim); margin-top:4px; max-width:70ch; }
+.ph .tools { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.crumbs { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--dim); margin-bottom:8px; flex-wrap:wrap; }
+.crumbs a { color:var(--ink-2); font-weight:560; }
+.crumbs a:hover { color:var(--ink); text-decoration:underline; }
+.sec { margin-top:28px; }
+.sec:first-child { margin-top:0; }
+.sh { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; margin-bottom:10px; }
+.sh h2 { font-size:14.5px; font-weight:680; letter-spacing:-.005em; }
+.sh .aside { color:var(--dim); font-size:13px; }
+.sh .tools { margin-left:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+.panel.pad { padding:14px 16px; }
+.rows > * + * { border-top:1px solid var(--line); }
+.hint { font-size:13px; color:var(--dim); line-height:1.45; }
+
+/* ---------- severity, state ---------- */
+.sev { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:640; white-space:nowrap; }
+.sev::before { content:""; width:8px; height:8px; border-radius:2px; background:var(--dim); }
+.sev.critical { color:var(--crit-ink); } .sev.critical::before { background:var(--crit); }
+.sev.warning { color:var(--warn-ink); } .sev.warning::before { background:var(--warn); }
+.sev.info { color:var(--info-ink); } .sev.info::before { background:var(--info); }
+.st { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px; font-size:12.5px; font-weight:620; white-space:nowrap; background:var(--sunk); color:var(--ink-2); box-shadow:inset 0 0 0 1px var(--line); }
+.st.open { background:var(--crit-w); color:var(--crit-ink); box-shadow:none; }
+.st.acknowledged { background:var(--warn-w); color:var(--warn-ink); box-shadow:none; }
+.st.mitigated { background:var(--info-w); color:var(--info-ink); box-shadow:none; }
+.st.resolved { background:var(--ok-w); color:var(--ok-ink); box-shadow:none; }
+.st.settling { background:transparent; color:var(--dim); box-shadow:inset 0 0 0 1px var(--line-2); }
+.firing { display:inline-flex; align-items:center; gap:6px; color:var(--crit-ink); font-weight:640; font-size:12.5px; white-space:nowrap; }
+.firing::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--crit); box-shadow:0 0 0 3px var(--crit-w); }
+.nobody { color:var(--crit-ink); font-weight:620; }
+
+/* ---------- controls ---------- */
+.btn, button { font:inherit; font-size:13px; font-weight:620; display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:var(--tap); padding:0 12px; border-radius:8px; border:1px solid var(--line-2); background:var(--panel); color:var(--ink); cursor:pointer; white-space:nowrap; text-decoration:none; }
+.btn:hover, button:hover { background:var(--hover); }
+.btn:disabled, button:disabled { opacity:.55; cursor:default; }
+.btn.primary, button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.btn.primary:hover, button.primary:hover { filter:brightness(1.07); }
+.btn.go, button.go { background:var(--ok); border-color:var(--ok); color:var(--on-ok); }
+.btn.hot, button.hot { background:var(--crit); border-color:var(--crit); color:var(--on-crit); }
+.btn.danger, button.danger { color:var(--crit-ink); }
+.btn.quiet, button.quiet { background:transparent; border-color:transparent; color:var(--ink-2); }
+.btn.quiet:hover, button.quiet:hover { background:var(--hover); }
+.btn.sm, button.sm { min-height:28px; padding:0 9px; font-size:12.5px; border-radius:7px; }
+.btn kbd, button kbd { margin-left:2px; background:transparent; border-color:currentColor; color:inherit; opacity:.75; }
+.btn.block, button.block { width:100%; }
+.actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.actions form { margin:0; display:contents; }
+form { margin:0; }
+.seg { display:inline-flex; border:1px solid var(--line-2); border-radius:8px; overflow:hidden; background:var(--panel); }
+.seg > a, .seg > button { border:0; border-radius:0; min-height:30px; padding:0 11px; font-size:12.5px; font-weight:600; color:var(--ink-2); background:transparent; display:inline-flex; align-items:center; gap:6px; }
+.seg > * + * { border-left:1px solid var(--line-2) !important; }
+.seg > .on, .seg > [aria-pressed=true] { background:var(--sel); color:var(--ink); }
+input[type=text], input[type=search], input[type=number], input[type=email], input[type=url], input[type=tel], input[type=time], input[type=datetime-local], textarea, select {
+  font:inherit; font-size:13.5px; color:var(--ink); background:var(--panel); border:1px solid var(--line-2); border-radius:8px; padding:0 10px; min-height:var(--tap); width:100%; min-width:0; }
+textarea { padding:9px 10px; min-height:88px; line-height:1.5; resize:vertical; }
+textarea.code { font-family:var(--mono); font-size:12.5px; }
+input:focus, textarea:focus, select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-w); }
+label.field { display:flex; flex-direction:column; gap:5px; min-width:0; }
+label.field > span { font-size:12.5px; font-weight:620; color:var(--ink-2); }
+label.field > small { font-size:12.5px; color:var(--dim); }
+label.check { display:flex; align-items:center; gap:9px; font-size:13.5px; min-height:32px; cursor:pointer; }
+label.check input { width:16px; height:16px; accent-color:var(--accent); margin:0; }
+.form { display:flex; flex-direction:column; gap:12px; }
+.fields { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px 12px; align-items:end; }
+fieldset { border:0; padding:0; margin:0; min-width:0; display:flex; flex-direction:column; gap:10px; }
+fieldset > legend { font-size:13px; font-weight:650; color:var(--ink-2); padding:0; margin-bottom:6px; }
+
+/* ---------- tables ---------- */
+.tbl { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.tbl th { text-align:left; font-size:12px; font-weight:640; color:var(--dim); padding:8px 12px; border-bottom:1px solid var(--line); white-space:nowrap; background:var(--panel); position:sticky; top:0; z-index:1; }
+.tbl th[data-sort] { cursor:pointer; user-select:none; }
+.tbl th[data-sort]:hover { color:var(--ink); }
+.tbl th[aria-sort=ascending]::after { content:" \2191"; } .tbl th[aria-sort=descending]::after { content:" \2193"; }
+.tbl td { padding:9px 12px; border-top:1px solid var(--line); vertical-align:top; }
+.tbl tbody tr:first-child td { border-top:0; }
+.tbl .n { text-align:right; }
+.tbl tbody tr[data-href] { cursor:pointer; }
+.tbl tbody tr:hover, .tbl tbody tr:focus-within, .tbl tbody tr:focus { background:var(--hover); outline:none; }
+.tbl-wrap { overflow-x:auto; }
+
+/* ---------- strips and heat ---------- */
+.strip { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr); gap:2px; height:18px; }
+.strip i { border-radius:2px; background:var(--cell); }
+.strip i.info { background:var(--info); } .strip i.warning { background:var(--warn); } .strip i.critical { background:var(--crit); }
+.strip i.future { background:transparent; box-shadow:inset 0 0 0 1px var(--line); }
+.strip i.quiet { background:repeating-linear-gradient(135deg, var(--crit) 0 1.5px, transparent 1.5px 4px); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crit) 45%, transparent); }
+.axis { display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-top:4px; font-variant-numeric:tabular-nums; }
+.nbar { display:flex; height:6px; border-radius:3px; background:var(--cell); overflow:hidden; }
+.nbar i { display:block; height:100%; }
+.nbar i.a, .key i.a { background:var(--ok); } .nbar i.p, .key i.p { background:var(--warn); } .nbar i.f, .key i.f { background:var(--cell-2); }
+.key { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--dim); }
+.key span { display:inline-flex; align-items:center; gap:6px; } .key i { width:12px; height:6px; border-radius:3px; display:inline-block; }
+
+/* ---------- empty, flash, markdown ---------- */
+.empty { padding:22px 16px; color:var(--dim); }
+.empty b { display:block; color:var(--ink); font-size:14px; margin-bottom:2px; }
+.flash { display:flex; gap:10px; align-items:center; padding:9px 12px; border-radius:8px; margin-bottom:14px; font-weight:560; overflow-wrap:anywhere; }
+.flash.ok { background:var(--ok-w); color:var(--ok-ink); } .flash.bad { background:var(--warn-w); color:var(--warn-ink); }
+.secret { display:block; background:var(--sunk); border:1px solid var(--line); border-radius:8px; padding:10px 12px; word-break:break-all; user-select:all; font-family:var(--mono); font-size:13px; }
+.md { line-height:1.65; overflow-wrap:anywhere; }
+.md > :first-child { margin-top:0; }
+.md h1, .md h2 { font-size:16px; margin:20px 0 6px; } .md h3 { font-size:14px; margin:16px 0 4px; }
+.md p, .md ul, .md ol { margin:0 0 10px; }
+.md pre { background:var(--sunk); border:1px solid var(--line); padding:10px 12px; border-radius:8px; overflow:auto; font-size:12.5px; }
+.md table { border-collapse:collapse; } .md td, .md th { border:1px solid var(--line); padding:6px 8px; }
+
+/* ---------- dialogs: command menu, open incident ---------- */
+dialog { border:1px solid var(--line-2); border-radius:12px; padding:0; background:var(--panel); color:var(--ink); box-shadow:0 24px 64px -16px rgba(0,0,0,.45); width:min(560px, calc(100vw - 24px)); }
+dialog::backdrop { background:rgba(10,10,14,.38); }
+dialog .dh { display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--line); }
+dialog .dh h2 { font-size:15px; font-weight:680; }
+dialog .dh .x { margin-left:auto; }
+dialog .db { padding:16px; }
+.cmdk { margin-top:12vh; }
+.cmdk input { border:0; border-radius:0; border-bottom:1px solid var(--line); min-height:48px; font-size:15px; padding:0 16px; box-shadow:none !important; }
+.cmdk ul { list-style:none; margin:0; padding:6px; max-height:min(420px, 60vh); overflow-y:auto; }
+.cmdk li.g { padding:8px 10px 4px; font-size:11.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); }
+.cmdk li.c { display:flex; align-items:center; gap:10px; min-height:36px; padding:0 10px; border-radius:7px; cursor:pointer; }
+.cmdk li.c kbd { margin-left:auto; }
+.cmdk li.c.on { background:var(--sel); }
+.cmdk li.none { padding:14px 10px; color:var(--dim); }
+.cmdk .foot { display:flex; gap:14px; padding:8px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--dim); }
+.toast { position:fixed; left:50%; bottom:20px; transform:translate(-50%, 16px); opacity:0; pointer-events:none; background:var(--ink); color:var(--bg); padding:9px 14px; border-radius:8px; font-weight:560; font-size:13px; transition:opacity .15s, transform .15s; z-index:20; max-width:calc(100vw - 32px); }
+.toast.show { opacity:1; transform:translate(-50%, 0); }
+.toast.bad { background:var(--crit); color:var(--on-crit); }
+
+{{block "style" .}}{{end}}
+
+/* ---------- tablet ---------- */
+@media (max-width:1180px) { :root { --rail-w:212px; } .page { padding:20px 22px 56px; } }
+/* ---------- phone ---------- */
+@media (max-width:860px) {
+  :root { --tap:44px; }
+  .shell { display:block; background:none; }
+  .rail { display:none; }
+  .topbar { display:flex; position:sticky; top:0; z-index:6; align-items:center; gap:6px; min-height:52px; padding:0 6px 0 14px; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+  .topbar .brand { padding:0 6px 0 0; min-height:44px; }
+  .topbar .sp { margin-left:auto; }
+  .topbar .ib { min-width:44px; min-height:44px; border:0; background:transparent; padding:0; color:var(--ink-2); }
+  .tabbar { display:grid; grid-template-columns:repeat(5, 1fr); position:fixed; z-index:6; left:0; right:0; bottom:0; padding:4px 2px calc(4px + env(safe-area-inset-bottom)); background:var(--panel); border-top:1px solid var(--line); }
+  .tabbar a, .tabbar button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:48px; font-size:12px; font-weight:560; color:var(--dim); position:relative; border:0; background:transparent; padding:0; border-radius:0; }
+  .tabbar .on { color:var(--ink); }
+  .tabbar svg.i { width:20px; height:20px; }
+  .tabbar .n { position:absolute; top:3px; left:calc(50% + 6px); font-size:12px; font-weight:700; min-width:18px; height:18px; padding:0 5px; border-radius:999px; display:grid; place-items:center; background:var(--crit); color:var(--on-crit); }
+  body { padding-bottom:calc(64px + env(safe-area-inset-bottom)); }
+  .page { padding:16px 16px 28px; }
+  .ph h1 { font-size:20px; }
+  .ph .tools { margin-left:0; }
+  .btn.sm, button.sm { min-height:44px; padding:0 12px; }
+  label.check { min-height:44px; }
+  main kbd { display:none; }
+  .crumbs a, main td a.link { display:inline-flex; align-items:center; min-height:44px; }
+  .sheet .rail-copy { display:flex; flex-direction:column; gap:2px; }
+  .sheet .rail-copy a { display:flex; align-items:center; gap:10px; min-height:44px; padding:0 12px; border-radius:8px; font-weight:560; color:var(--ink-2); }
+  .sheet .rail-copy a.on { background:var(--sel); color:var(--ink); }
+  .sheet .rail-copy h6 { margin:10px 0 2px; padding:0 12px; font-size:11.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); }
+  dialog.sheet { margin:auto 0 0; width:100vw; max-width:100vw; border-radius:14px 14px 0 0; max-height:85vh; }
+}
+</style>
+</head>
+<body{{if .Desk}} data-stream{{end}}>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></symbol>
+  <symbol id="i-live" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-services" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></symbol>
+  <symbol id="i-schedules" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-status" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-me" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
+  <symbol id="i-notifications" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 15c2 .6 3.2 2.2 3.8 5"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M16 7l3 3"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+</svg>
+{{define "railnav"}}
+  <h6>Respond</h6>
+  <nav aria-label="Respond">
+    <a href="/" class="{{if or (eq .Nav "incidents") (eq .Nav "incident")}}on{{end}}" data-name="Home"><svg class="i"><use href="#i-home"/></svg>Home{{if .LiveCount}}<span class="n{{if .LiveHot}} hot{{end}}">{{.LiveCount}}</span>{{end}}</a>
+    <a href="/history" class="{{if or (eq .Nav "history") (eq .Nav "postmortem")}}on{{end}}" data-name="Incidents"><svg class="i"><use href="#i-list"/></svg>Incidents</a>
+  </nav>
+  <h6>On call</h6>
+  <nav aria-label="On call">
+    <a href="/schedules" class="{{if eq .Nav "schedules"}}on{{end}}" data-name="Schedules"><svg class="i"><use href="#i-schedules"/></svg>Schedules</a>
+    {{if .Admin}}<a href="/people" class="{{if eq .Nav "people"}}on{{end}}" data-name="People and chains"><svg class="i"><use href="#i-people"/></svg>People and chains</a>{{end}}
+  </nav>
+  <h6>Signals</h6>
+  <nav aria-label="Signals">
+    <a href="/components" class="{{if eq .Nav "components"}}on{{end}}" data-name="Services and noise"><svg class="i"><use href="#i-services"/></svg>Services and noise</a>
+    {{if .Admin}}<a href="/settings/routing" class="{{if eq .Place "routing"}}on{{end}}" data-name="Routes"><svg class="i"><use href="#i-route"/></svg>Routes</a>
+    <a href="/notifications" class="{{if or (eq .Nav "notifications") (eq .Nav "page")}}on{{end}}" data-name="Notifications"><svg class="i"><use href="#i-notifications"/></svg>Notifications</a>{{end}}
+  </nav>
+  <h6>Publish</h6>
+  <nav aria-label="Publish">
+    <a href="/status" class="{{if eq .Nav "internal-status"}}on{{end}}" data-name="Status page"><svg class="i"><use href="#i-globe"/></svg>Status page</a>
+    {{if .Admin}}<a href="/settings/status" class="{{if eq .Place "status"}}on{{end}}" data-name="Status settings"><svg class="i"><use href="#i-doc"/></svg>Status settings</a>{{end}}
+  </nav>
+  {{if .Admin}}
+  <h6>Desk</h6>
+  <nav aria-label="Desk">
+    <a href="/settings" class="{{if eq .Place "general"}}on{{end}}" data-name="General settings"><svg class="i"><use href="#i-gear"/></svg>General</a>
+    <a href="/settings/machines" class="{{if eq .Place "machines"}}on{{end}}" data-name="Machines"><svg class="i"><use href="#i-key"/></svg>Machines</a>
+  </nav>
+  {{end}}
+{{end}}
+<div class="shell">
+  <aside class="rail" aria-label="Desk">
+    <a class="brand" href="{{if .Desk}}/{{else}}/me{{end}}"><span class="brand-mark"><svg class="i"><use href="#i-live"/></svg></span>dispatch{{if .Desk}}<span class="live-dot" data-live-dot title="Connecting"></span>{{end}}</a>
+    {{if .Desk}}<button type="button" class="find" data-open-menu><svg class="i"><use href="#i-search"/></svg>Search or run<kbd>&#8984;K</kbd></button>
+    {{template "railnav" .}}{{end}}
+    <div class="foot">
+      {{if .Desk}}<div id="shift" data-live>{{with .Shift}}{{if .Any}}
+      <a class="pill-oncall{{if .OnCall}} me{{end}}" href="/schedules"><span class="d"></span><span>{{if .OnCall}}<b>You're on call</b>{{else}}<b>{{who .Who}} is on call</b>{{end}}{{if not .Until.IsZero}}<small>for <time data-until="{{iso .Until}}">{{dur (.Until.Sub $.Now)}}</time></small>{{else}}<small>No handoff in sight</small>{{end}}</span></a>
+      {{else}}<a class="pill-oncall" href="/schedules"><span class="d"></span><span><b>Nobody is on call</b><small>No schedule covers now</small></span></a>{{end}}{{end}}</div>
+      <button type="button" class="primary block" data-dialog="open-incident" data-cmd="Open an incident" data-group="Desk"><svg class="i"><use href="#i-plus"/></svg>Open incident</button>{{end}}
+      <a class="me-link{{if eq .Nav "me"}} on{{end}}" href="/me" data-name="Me"><span class="av">{{initials .Email}}</span>{{who .Email}}</a>
+    </div>
+  </aside>
+  <div class="work">
+    <header class="topbar">
+      <a class="brand" href="{{if .Desk}}/{{else}}/me{{end}}"><span class="brand-mark"><svg class="i"><use href="#i-live"/></svg></span>dispatch</a>
+      <span class="sp"></span>
+      {{if .Desk}}<button type="button" class="ib" data-open-menu aria-label="Search or run"><svg class="i"><use href="#i-search"/></svg></button>
+      <button type="button" class="ib" data-dialog="open-incident" aria-label="Open an incident"><svg class="i"><use href="#i-plus"/></svg></button>{{end}}
+      <a class="ib" href="/me" aria-label="Me" style="display:grid;place-items:center"><span class="av">{{initials .Email}}</span></a>
+    </header>
+    {{block "content" .}}{{end}}
+  </div>
+</div>
+{{if .Desk}}
+<nav class="tabbar" aria-label="Desk">
+  <a href="/" class="{{if or (eq .Nav "incidents") (eq .Nav "incident")}}on{{end}}"><svg class="i"><use href="#i-home"/></svg>Home{{if .LiveCount}}<span class="n">{{.LiveCount}}</span>{{end}}</a>
+  <a href="/history" class="{{if eq .Nav "history"}}on{{end}}"><svg class="i"><use href="#i-list"/></svg>Incidents</a>
+  <a href="/schedules" class="{{if eq .Nav "schedules"}}on{{end}}"><svg class="i"><use href="#i-schedules"/></svg>On call</a>
+  <a href="/components" class="{{if eq .Nav "components"}}on{{end}}"><svg class="i"><use href="#i-services"/></svg>Services</a>
+  <button type="button" data-dialog="more"><svg class="i"><use href="#i-more"/></svg>More</button>
+</nav>
+<dialog id="more" class="sheet" data-modal aria-label="More">
+  <div class="dh"><h2>dispatch</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+  <div class="db rail-copy">{{template "railnav" .}}
+    <h6>You</h6><a href="/me"><svg class="i"><use href="#i-me"/></svg>{{who .Email}}</a></div>
+</dialog>
+<dialog id="open-incident" data-modal aria-label="Open an incident">
+  <form method="post" action="/incidents" data-reload data-event="incident.open">
+    <div class="dh"><h2>Open an incident</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="db form">
+      <label class="field"><span>What is wrong</span><input type="text" name="title" required maxlength="200" placeholder="Checkout is failing for everyone"></label>
+      <div class="fields">
+        <label class="field"><span>Severity</span><select name="severity"><option>critical</option><option selected>warning</option><option>info</option></select></label>
+        <label class="field"><span>Service</span><input type="text" name="service" placeholder="checkout"></label>
+      </div>
+      <label class="field"><span>What you know so far</span><textarea name="description" rows="3"></textarea></label>
+      <label class="check"><input type="checkbox" name="public"> Show it on the status page</label>
+      <div class="actions"><button type="submit" class="primary">Open it</button><span class="hint">You own it once it opens.</span></div>
+    </div>
+  </form>
+</dialog>
+<dialog id="cmdk" class="cmdk" data-modal aria-label="Command menu">
+  <input type="text" placeholder="Run a command, jump to #number, or search" aria-label="Command" autocomplete="off" spellcheck="false">
+  <ul role="listbox"></ul>
+  <div class="foot"><span><kbd>&#8593;</kbd> <kbd>&#8595;</kbd> move</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span><span><kbd>/</kbd> search</span></div>
+</dialog>
+{{end}}
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/desk.js" defer></script>
+<script src="https://unpkg.com/@grafana/faro-web-sdk@1.19.0/dist/bundle/faro-web-sdk.iife.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@grafana/faro-web-tracing@1.19.0/dist/bundle/faro-web-tracing.iife.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  if (!window.GrafanaFaroWebSdk) return;
+  var sdk = window.GrafanaFaroWebSdk;
+  var instrumentations = sdk.getWebInstrumentations({ captureConsole: false, enablePerformanceInstrumentation: false });
+  if (window.GrafanaFaroWebTracing) {
+    instrumentations.push(new window.GrafanaFaroWebTracing.TracingInstrumentation({
+      instrumentationOptions: { propagateTraceHeaderCorsUrls: [], ignoreUrls: [/\/api\/telemetry/, /\/live$/] }
+    }));
+  }
+  var faro = sdk.initializeFaro({
+    url: '/api/telemetry',
+    app: { name: 'dispatch-web', version: {{.Version}} },
+    sessionTracking: { enabled: true },
+    instrumentations: instrumentations
+  });
+  window.addEventListener('load', function () {
+    faro.api.pushMeasurement({ type: 'desk_ready', values: { ready_ms: Math.round(performance.now()) } });
+  });
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('form[data-event]');
+    if (f) faro.api.pushEvent(f.getAttribute('data-event'), f.hasAttribute('data-attr') ? { kind: f.getAttribute('data-attr') } : {});
+  });
+})();
+</script>
+</body>
+</html>

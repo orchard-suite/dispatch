@@ -1,0 +1,44 @@
+# What the dispatch desk writes: one incident per entity, pushed as it
+# changes, keyed dispatch-<id>. Import after the catalog's workloads exist,
+# so an incident links to the workload its alert's namespace resolved to.
+# dispatch offers the same blueprint on the ingest API before its first
+# push; this file is the catalog's copy of it.
+blueprints:
+  - id: it_incident
+    title: Incident
+    group: IT
+    formerly: [incident]
+    icon: alert
+    description: >
+      Record. One incident the dispatch desk holds: an alert group a person owns until it is
+      restored, with its severity, state, owner, and times. Kept ninety days from its opening.
+      The desk is where it is worked; here it shows on the workload it is about.
+    status: { field: phase }
+    lifecycle: { expire: { after: 90d, field: opened_at } }
+    fields:
+      severity: { type: enum, values: [critical, warning, info], chip: true, overridable: false }
+      state: { type: enum, values: [open, acknowledged, mitigated, resolved], chip: true, overridable: false }
+      phase: { type: enum, values: [open, acknowledged, mitigated, settling, resolved], chip: true, description: 'The state a person reads: settling while every alert has stopped and it waits to close itself, else its state.', overridable: false }
+      firing: { type: boolean, title: Firing, description: Whether any of its alerts fires now., overridable: false }
+      closes_at: { type: datetime, title: Closes itself, description: 'When the desk resolves it, while it is settling.', overridable: false }
+      service: { type: string, description: The component the desk mapped the alert to., overridable: false }
+      owner: { type: string, description: Who acknowledged it or was assigned it., overridable: false }
+      source: { type: string, chip: true, description: 'alertmanager, api, or desk.', overridable: false }
+      opened_at: { type: datetime, title: Opened, overridable: false }
+      acknowledged_at: { type: datetime, title: Acknowledged, overridable: false }
+      mitigated_at: { type: datetime, title: Mitigated, overridable: false }
+      resolved_at: { type: datetime, title: Resolved, overridable: false }
+      updated_at: { type: datetime, title: Updated, overridable: false }
+      time_to_acknowledge_seconds: { type: number, title: Time to acknowledge (s), overridable: false }
+      time_to_restore_seconds: { type: number, title: Time to restore (s), overridable: false }
+      url: { type: url, title: Desk, description: The incident's page on the desk., overridable: false }
+      notes: { type: markdown }
+    relations:
+      workload: { target: sw_workload, many: false, title: Workload, inverseTitle: Incidents }
+
+  - id: sw_workload
+    title: Workload
+    formerly: [workload]
+    fields:
+      open_incidents: { type: number, title: Open incidents, aggregation: { relation: '<-it_incident:workload', fn: count, where: { field: state, op: neq, value: resolved } } }
+      incidents_30d: { type: number, title: Incidents (30d), aggregation: { relation: '<-it_incident:workload', fn: count, window: { field: opened_at, last: 30d } } }

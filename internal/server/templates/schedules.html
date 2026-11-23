@@ -1,0 +1,223 @@
+{{define "title"}}On call · dispatch{{end}}
+{{define "style"}}
+.sched { margin-top:22px; }
+.sched:first-of-type { margin-top:0; }
+.sched > .live { padding:18px 20px 6px; }
+.lead { display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; }
+.lead .av.xl { width:52px; height:52px; font-size:18px; }
+.lead .who small { display:block; font-size:12.5px; font-weight:620; color:var(--dim); }
+.lead .who b { display:block; font-size:24px; font-weight:720; letter-spacing:-.02em; line-height:1.2; }
+.lead .who b.nobody { color:var(--crit-ink); }
+.lead .who .until { display:block; font-size:13.5px; color:var(--ink-2); margin-top:2px; }
+.lead .who .until time { font-weight:650; font-variant-numeric:tabular-nums; }
+.lead .next { padding-left:22px; border-left:1px solid var(--line); font-size:13px; color:var(--dim); line-height:1.45; }
+.lead .next b { display:block; color:var(--ink); font-size:14px; font-weight:640; }
+.lead .next b.nobody { color:var(--crit-ink); }
+.lead .tools { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
+.meta { font-size:12.5px; color:var(--dim); margin:0 0 4px; }
+.meta code { font-size:12px; }
+.ribbon { margin:18px 0 8px; }
+.rib-track { position:relative; height:34px; border-radius:7px; background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--crit) 55%, transparent) 0 2px, var(--crit-w) 2px 7px); overflow:hidden; }
+.rib-track .blk { position:absolute; top:0; bottom:0; display:flex; align-items:center; gap:6px; padding:0 8px; font-size:12.5px; font-weight:640; white-space:nowrap; color:var(--ink); min-width:4px; box-shadow:1px 0 0 var(--panel); overflow:hidden; }
+.rib-track .blk .av { width:22px; height:22px; font-size:12px; background:var(--panel); }
+.rib-track .day { position:absolute; top:0; bottom:0; width:1px; background:color-mix(in srgb, var(--ink) 12%, transparent); }
+.h0 { background:#c3d0ff; } .h1 { background:#b5e6cb; } .h2 { background:#fbd6a6; } .h3 { background:#dac6fb; } .h4 { background:#f2e08f; } .h5 { background:#f4c0d3; }
+@media (prefers-color-scheme: dark) { .h0 { background:#2c3a6a; } .h1 { background:#1f4836; } .h2 { background:#523a18; } .h3 { background:#41306a; } .h4 { background:#4f4617; } .h5 { background:#542739; } }
+.rib-days { position:relative; height:18px; margin-top:5px; font-size:12px; color:var(--dim); }
+.rib-days span { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; }
+.rib-now { font-size:12px; font-weight:650; color:var(--accent-ink); margin-bottom:4px; }
+.rib-key { display:flex; gap:6px 16px; flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--ink-2); }
+.rib-key span { display:inline-flex; align-items:center; gap:7px; }
+.rib-key i { width:12px; height:12px; border-radius:3px; display:inline-block; flex-shrink:0; }
+.rib-key i.gap { background:repeating-linear-gradient(135deg, var(--crit) 0 2px, transparent 2px 4px); box-shadow:inset 0 0 0 1px var(--crit); }
+.rib-key .bad { color:var(--crit-ink); font-weight:620; }
+.lines { margin:14px -20px 0; border-top:1px solid var(--line); }
+.lines h3 { font-size:12px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; color:var(--faint); padding:12px 20px 4px; }
+.line { display:grid; grid-template-columns:minmax(150px, 260px) minmax(0, 1fr) auto; gap:4px 16px; align-items:center; padding:8px 20px; min-height:44px; }
+.line + .line { border-top:1px solid var(--line); }
+.line .p { display:inline-flex; align-items:center; gap:8px; font-weight:600; min-width:0; }
+.line .p .av { width:24px; height:24px; font-size:12px; }
+.line .w { color:var(--ink-2); font-size:13px; font-variant-numeric:tabular-nums; }
+.line .w .dim { color:var(--dim); }
+.line.gap .p { color:var(--crit-ink); }
+.line .tag { font-size:11.5px; font-weight:650; color:var(--accent-ink); background:var(--accent-w); border-radius:5px; padding:2px 6px; }
+.cfg { padding:6px 20px 16px; }
+.cfg h3 { font-size:12px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; color:var(--faint); padding:8px 0 4px; }
+.crow { border:1px solid var(--line); border-radius:9px; background:var(--panel); }
+.crow + .crow { margin-top:6px; }
+.crow > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; min-height:46px; padding:8px 12px; font-size:13.5px; line-height:1.5; }
+.crow > summary::-webkit-details-marker { display:none; }
+.crow > summary .s { flex:1; min-width:0; color:var(--ink-2); }
+.crow > summary .s b { color:var(--ink); font-weight:640; }
+.crow > summary .s .pp { display:inline-flex; align-items:center; gap:5px; margin-right:2px; color:var(--ink); font-weight:600; white-space:nowrap; }
+.crow > summary .s .pp .av { width:22px; height:22px; font-size:11px; }
+.crow > summary .ed { flex-shrink:0; display:inline-flex; align-items:center; min-height:32px; padding:0 10px; border-radius:7px; border:1px solid var(--line-2); font-size:12.5px; font-weight:620; color:var(--ink-2); }
+.crow > summary:hover .ed { background:var(--hover); color:var(--ink); }
+.crow[open] > summary { border-bottom:1px solid var(--line); }
+.crow[open] > summary .ed { background:var(--sel); color:var(--ink); }
+.crow.add:not([open]) { border:0; background:transparent; }
+.crow.add:not([open]) > summary { padding:0; min-height:0; }
+.crow > summary .nl { display:inline-flex; align-items:center; gap:7px; min-height:34px; padding:0 12px; border-radius:8px; color:var(--ink-2); font-weight:620; font-size:13px; }
+.crow > summary:hover .nl { background:var(--hover); color:var(--ink); }
+.crow .fx { display:flex; flex-direction:column; gap:12px; padding:14px 12px; }
+.fx .two { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px 12px; }
+.fx .mem { display:flex; flex-wrap:wrap; gap:6px; }
+.fx .mem select { width:auto; min-width:150px; flex:1 1 150px; }
+.fx .mem input { flex:1 1 200px; }
+.fx .hrs { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.fx .hrs input[type=time] { width:auto; }
+.fx .days { display:flex; flex-wrap:wrap; gap:4px; }
+.fx .days label { display:inline-flex; align-items:center; gap:5px; min-height:32px; padding:0 9px; border:1px solid var(--line-2); border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; }
+.fx .days label:has(input:checked) { background:var(--sel); border-color:var(--accent); }
+.fx .days input { width:14px; height:14px; margin:0; accent-color:var(--accent); }
+.fx .drop { color:var(--crit-ink); }
+.end { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; }
+.sform:not(:has(details[open])) .end.save { display:none; }
+.gone button { color:var(--crit-ink); }
+.gone { display:flex; justify-content:flex-end; padding:0 20px 14px; }
+@media (max-width:860px) {
+  .sched > .live { padding:16px 14px 4px; }
+  .lead .next { padding-left:0; border-left:0; flex:1 1 100%; }
+  .lead .tools { margin-left:0; flex:1 1 100%; } .lead .tools > * { flex:1; } .lead .tools kbd { display:none; }
+  .line .p .av { font-size:12px; }
+  .rib-track .blk > * { display:none; }
+  .rib-days span { display:none; } .rib-days span:nth-child(4n+1) { display:inline; }
+  .lines { margin:14px -14px 0; } .lines h3 { padding-left:14px; padding-right:14px; }
+  .line { grid-template-columns:minmax(0, 1fr) auto; padding:8px 14px; } .line .w { grid-column:1; grid-row:2; }
+  .cfg { padding:6px 14px 14px; } .gone { padding:0 14px 14px; }
+  .crow > summary { align-items:flex-start; }
+  .crow > summary .ed, .crow > summary .nl { min-height:44px; }
+  .crow > summary .s .pp .av { width:24px; height:24px; font-size:12px; }
+  .fx .days label { min-height:44px; padding:0 12px; }
+}
+{{end}}
+{{define "layers"}}
+<input type="hidden" name="rows" value="1">
+{{range .Rows}}{{$k := .Index}}
+<details class="crow{{if not .Kept}} add{{end}}"{{if and (not .Kept) (eq $k 0)}} open{{end}}>
+  <summary>{{if .Kept}}<span class="s"><b>{{if .Name}}{{.Name}}{{else}}Layer {{inc $k}}{{end}}</b>: {{if eq (len .Members) 1}}{{range .Members}}<span class="pp"><span class="av">{{initials .}}</span>{{who .}}</span>{{end}} holds every turn of {{.TurnSaid}}, counted from {{.StartSaid}}, so it never hands off{{else}}{{range $i, $m := .Members}}{{if $i}} then {{end}}<span class="pp"><span class="av">{{initials $m}}</span>{{who $m}}</span>{{end}} take turns of {{.TurnSaid}}, counted from {{.StartSaid}}{{end}}, {{if .HoursSaid}}only {{.HoursSaid}}{{else}}all day{{end}}.</span><span class="ed">Edit</span>
+  {{else if eq $k 0}}<span class="s"><b>First layer</b>: who takes turns, and how long each turn lasts.</span>{{else}}<span class="nl"><svg class="i"><use href="#i-plus"/></svg>New layer</span>{{end}}</summary>
+  <div class="fx">
+    {{if .Kept}}<input type="hidden" name="l{{$k}}_kept" value="1">{{end}}
+    <div class="two">
+      <label class="field"><span>Layer name</span><input type="text" name="l{{$k}}_name" value="{{.Name}}" maxlength="40" placeholder="Weekly"></label>
+      <label class="field"><span>Each turn lasts</span><select name="l{{$k}}_turn">{{$t := .Turn}}{{range .Turns}}<option value="{{.}}"{{if eq . $t}} selected{{end}}>{{if eq . "12h"}}12 hours{{else if eq . "1d"}}a day{{else if eq . "1w"}}a week{{else if eq . "2w"}}2 weeks{{else}}{{.}}{{end}}</option>{{end}}</select></label>
+      <label class="field"><span>First turn starts</span><input type="datetime-local" name="l{{$k}}_start" value="{{.Start}}"></label>
+    </div>
+    <div class="field"><span style="font-size:12.5px;font-weight:620;color:var(--ink-2)">Who takes turns, in order</span><div class="mem">
+      {{range .Slots}}{{$m := .}}<select name="l{{$k}}_member" aria-label="Takes a turn">
+        <option value="">{{if $m}}Nobody{{else}}Add someone{{end}}</option>
+        {{range $.People}}<option value="{{.}}"{{if eq . $m}} selected{{end}}>{{who .}}</option>{{end}}
+      </select>{{end}}
+      <input type="email" name="l{{$k}}_new" placeholder="Or someone new, by email" aria-label="Someone new, by email">
+    </div></div>
+    <div class="field"><span style="font-size:12.5px;font-weight:620;color:var(--ink-2)">Only these hours <span class="dim" style="font-weight:500">(leave empty for all day)</span></span>
+      <div class="hrs"><input type="time" name="l{{$k}}_from" value="{{.From}}" aria-label="From"> to <input type="time" name="l{{$k}}_to" value="{{.To}}" aria-label="To">
+        <span class="days">{{range .DayPicks}}<label><input type="checkbox" name="l{{$k}}_day" value="{{.I}}"{{if .On}} checked{{end}}>{{.Name}}</label>{{end}}</span></div></div>
+    {{if .Kept}}<label class="check drop"><input type="checkbox" name="l{{$k}}_drop"> Remove this layer</label>{{end}}
+  </div>
+</details>
+{{end}}
+{{end}}
+{{define "content"}}
+<main class="page">
+  <div class="ph">
+    <div><h1>On call</h1><p class="lede">Who has each schedule now, the next two weeks, and where nobody does.</p></div>
+    {{if .Admin}}<div class="tools"><button type="button" data-dialog="add-schedule" data-cmd="Add a schedule" data-group="On call"><svg class="i"><use href="#i-plus"/></svg>Add a schedule</button></div>{{end}}
+  </div>
+  {{if .Done}}<div class="flash ok" data-flash>{{.Done}}</div>{{end}}
+  {{if .Bad}}<div class="flash bad" data-message>{{cap .Bad}}.</div>{{end}}
+  
+  {{range $n, $sc := .Schedules}}
+  <section class="panel sched" id="{{.Slug}}">
+    <div class="live" id="live-{{.Slug}}" data-live>
+      <p class="meta">{{.Name}}, times in {{.Place}}</p>
+      <div class="lead">
+        {{if .Now}}<span class="av xl">{{initials .Now}}</span>{{else}}<span class="av xl none">?</span>{{end}}
+        <div class="who"><small>On call now</small>
+          {{if .Now}}<b>{{who .Now}}</b>{{if not .Until.IsZero}}<span class="until">until {{(.Until.In .Local).Format "Mon Jan 2, 15:04 MST"}}, <time data-until="{{iso .Until}}">{{dur (.Until.Sub $.Now)}}</time> from now</span>{{else}}<span class="until">No handoff in the next two weeks: every turn through {{(.To.In .Local).Format "Mon Jan 2"}} is theirs.</span>{{end}}
+          {{else}}<b class="nobody">Nobody</b><span class="until">A page to this schedule reaches no one.</span>{{end}}</div>
+        {{with .Next}}<div class="next">Then{{if .Person}}<b>{{who .Person}}</b>{{else}}<b class="nobody">nobody, a gap</b>{{end}}from {{(.From.In $sc.Local).Format "Mon Jan 2, 15:04"}}</div>{{end}}
+        <div class="tools"><button type="button" data-dialog="cover-{{.Slug}}" {{if eq $n 0}}data-key="C" data-cmd="Add a cover" data-group="On call"{{end}}>Add a cover{{if eq $n 0}} <kbd>C</kbd>{{end}}</button></div>
+      </div>
+      <div class="ribbon">
+        <div class="rib-now">From now, two weeks ahead</div>
+        <div class="rib-track" role="img" aria-label="Who is on call for the next two weeks">
+          {{range .Blocks}}{{if .Person}}<span class="blk h{{.Hue}}" style="left:{{printf "%.2f" .Left}}%; width:{{printf "%.2f" .Width}}%" title="{{who .Person}}: {{(.From.In $sc.Local).Format "Mon Jan 2 15:04"}} to {{(.To.In $sc.Local).Format "Mon Jan 2 15:04"}}">{{if .Label}}<span class="av">{{initials .Person}}</span><b>{{who .Person}}</b>{{end}}</span>{{end}}{{end}}
+          {{range .Days}}<i class="day" style="left:{{printf "%.2f" .Left}}%"></i>{{end}}
+        </div>
+        <div class="rib-days" aria-hidden="true">{{range .Days}}<span style="left:{{printf "%.2f" .Left}}%">{{.Label}}</span>{{end}}</div>
+        <div class="rib-key">{{range .People}}<span><i class="h{{.Hue}}"></i>{{who .Person}}</span>{{end}}{{if .Gaps}}<span class="bad"><i class="gap"></i>{{len .Gaps}} gap{{if gt (len .Gaps) 1}}s{{end}}: nobody is paged</span>{{else}}<span class="dim">No gaps in the next two weeks</span>{{end}}</div>
+      </div>
+      <div class="lines">
+        {{if .Overrides}}<h3>Covers</h3>
+        {{range .Overrides}}
+        <div class="line"><span class="p"><span class="av">{{initials .Person}}</span>{{who .Person}} <span class="tag">cover</span></span>
+          <span class="w">{{(.From.In $sc.Local).Format "Mon Jan 2 15:04"}} to {{(.To.In $sc.Local).Format "Mon Jan 2 15:04"}} <span class="dim">by {{who .By}}{{if .Reason}}: {{.Reason}}{{end}}</span></span>
+          <form method="post" action="/schedules/{{$sc.Slug}}/covers/{{.ID}}/delete" data-event="schedule.uncover" data-confirm="Remove this cover?" data-done="Cover removed."><button type="submit" class="sm danger">Remove</button></form></div>
+        {{end}}{{end}}
+        <h3>Shifts, next two weeks</h3>
+        {{range .Shifts}}
+        <div class="line{{if not .Person}} gap{{end}}"><span class="p">{{if .Person}}<span class="av">{{initials .Person}}</span>{{who .Person}}{{else}}<span class="av none">?</span>Nobody{{end}}</span>
+          <span class="w">{{if .From.Equal $sc.From}}Now{{else}}{{(.From.In $sc.Local).Format "Mon Jan 2 15:04"}}{{end}} to {{if .To.Equal $sc.To}}past {{(.To.In $sc.Local).Format "Mon Jan 2"}}, the end of the two weeks{{else}}{{(.To.In $sc.Local).Format "Mon Jan 2 15:04 MST"}} <span class="dim">{{dur (.To.Sub .From)}}</span>{{end}}</span><span></span></div>
+        {{end}}
+      </div>
+    </div>
+    {{if $.Admin}}
+    <form method="post" action="/schedules" class="sform" data-event="schedule.save" data-reload>
+      <input type="hidden" name="slug" value="{{.Slug}}">
+      <div class="cfg">
+        <h3>How it runs</h3>
+        <details class="crow"><summary><span class="s">Called <b>{{.Name}}</b>, on <b>{{.Place}}</b> time.</span><span class="ed">Edit</span></summary>
+          <div class="fx"><div class="two">
+            <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" value="{{.Name}}"></label>
+            <label class="field"><span>Time zone</span><select name="zone">{{$z := .Zone}}{{range .Zones}}<option value="{{.Zone}}"{{if eq .Zone $z}} selected{{end}}>{{.Place}}</option>{{end}}</select></label>
+          </div></div></details>
+        {{template "layers" .Form}}
+        <div class="end save"><button class="primary" type="submit">Save changes</button><button type="reset" class="quiet" onclick="this.form.querySelectorAll('details[open]').forEach(function(d){d.open=false})">Cancel</button></div>
+      </div>
+    </form>
+    <form method="post" action="/schedules/{{.Slug}}/delete" data-event="schedule.delete" data-reload data-confirm="Remove {{.Name}}? Chains that name it reach nobody after." class="gone"><button type="submit" class="sm quiet danger">Remove this schedule</button></form>
+    {{end}}
+  </section>
+  {{else}}
+  <div class="panel"><div class="empty"><b>No schedules yet</b>Without one, a page reaches only the people a chain names. {{if .Admin}}Add one with Add a schedule.{{else}}An admin adds them.{{end}}</div></div>
+  {{end}}
+
+  <p class="hint" style="margin-top:16px">A chain's step that names a schedule reaches whoever has it then. Whoever comes on call is told, and channels that take handoffs and gaps hear of them.</p>
+</main>
+
+{{range .Schedules}}
+<dialog id="cover-{{.Slug}}" data-modal aria-label="Add a cover to {{.Name}}">
+  <form method="post" action="/schedules/{{.Slug}}/covers" data-event="schedule.cover" data-done="Cover added." onsubmit="this.tz_offset.value=new Date().getTimezoneOffset()">
+    <div class="dh"><h2>Cover {{.Name}}</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="db form">
+      <input type="hidden" name="tz_offset" value="0">
+      <p class="hint">A cover puts someone on call above every layer. Two covers make a swap.</p>
+      <label class="field"><span>Who covers</span><select name="person">{{range $.People}}<option value="{{.}}"{{if eq . $.Me}} selected{{end}}>{{who .}}{{if eq . $.Me}} (you){{end}}</option>{{end}}</select></label>
+      <div class="fields">
+        <label class="field"><span>From</span><input type="datetime-local" name="from" required></label>
+        <label class="field"><span>To</span><input type="datetime-local" name="to" required></label>
+      </div>
+      <label class="field"><span>Why</span><input type="text" name="reason" maxlength="300" placeholder="Away for the weekend"></label>
+      <div class="actions"><button type="submit" class="primary">Add the cover</button><span class="hint">Times are your browser's.</span></div>
+    </div>
+  </form>
+</dialog>
+{{end}}
+{{if .Admin}}
+<dialog id="add-schedule" data-modal aria-label="Add a schedule" style="width:min(760px, calc(100vw - 24px))">
+  <form method="post" action="/schedules" data-event="schedule.save" data-reload>
+    <div class="dh"><h2>Add a schedule</h2><button type="button" class="quiet x" onclick="this.closest('dialog').close()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="db form">
+      <div class="fx" style="padding:0"><div class="two">
+        <label class="field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="Platform on call"></label>
+        <label class="field"><span>Time zone</span><select name="zone">{{range .NewZones}}<option value="{{.Zone}}"{{if eq .Zone "America/New_York"}} selected{{end}}>{{.Place}}</option>{{end}}</select></label>
+      </div></div>
+      {{template "layers" .Blank}}
+      <div class="actions"><button class="primary" type="submit">Add the schedule</button></div>
+    </div>
+  </form>
+</dialog>
+{{end}}
+{{end}}

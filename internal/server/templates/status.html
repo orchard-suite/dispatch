@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>{{.Page.Title}}</title>
+{{template "install"}}
+<style>
+:root { color-scheme:light;
+  --bg:#f7f7f5; --panel:#ffffff; --line:#e3e3de; --line-2:#cfcfc8; --ink:#16161a; --ink-2:#3b3b43; --dim:#5b5b64;
+  --accent:#2f47d0; --accent-w:#e8ebfb; --on-accent:#ffffff;
+  --ok:#137446; --ok-ink:#0f6239; --ok-w:#e0f2e7; --degraded:#b26404; --degraded-ink:#874b00; --degraded-w:#fbf0db; --down:#c3232f; --down-ink:#a51b27; --down-w:#fbe7e8;
+  --font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme:dark;
+  --bg:#121214; --panel:#18181b; --line:#27272d; --line-2:#383840; --ink:#ececef; --ink-2:#cfcfd6; --dim:#a8a8b2;
+  --accent:#8c9dff; --accent-w:#1d2242; --on-accent:#0b0b14;
+  --ok:#4cc58b; --ok-ink:#76d9a8; --ok-w:#11291d; --degraded:#f0a43c; --degraded-ink:#f6bb66; --degraded-w:#302410; --down:#ff5f69; --down-ink:#ff8d95; --down-w:#371619; } }
+:root[data-theme="dark"] { color-scheme:dark;
+  --bg:#121214; --panel:#18181b; --line:#27272d; --line-2:#383840; --ink:#ececef; --ink-2:#cfcfd6; --dim:#a8a8b2;
+  --accent:#8c9dff; --accent-w:#1d2242; --on-accent:#0b0b14;
+  --ok:#4cc58b; --ok-ink:#76d9a8; --ok-w:#11291d; --degraded:#f0a43c; --degraded-ink:#f6bb66; --degraded-w:#302410; --down:#ff5f69; --down-ink:#ff8d95; --down-w:#371619; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 var(--font); -webkit-font-smoothing:antialiased; }
+main { max-width:720px; margin:0 auto; padding:40px 16px 64px; }
+a { color:var(--accent); }
+.inside { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-bottom:22px; padding:10px 14px; border-radius:10px; background:var(--accent-w); color:var(--ink-2); font-size:13.5px; }
+.inside a { font-weight:620; text-decoration:none; display:inline-flex; align-items:center; min-height:44px; }
+.inside a:hover { text-decoration:underline; }
+h1 { font-size:15px; font-weight:650; color:var(--dim); margin:0 0 10px; letter-spacing:0; }
+.say { display:flex; align-items:flex-start; gap:14px; margin:0 0 6px; }
+.say i { width:14px; height:14px; border-radius:50%; flex-shrink:0; margin-top:11px; }
+.say.operational i { background:var(--ok); box-shadow:0 0 0 5px var(--ok-w); }
+.say.degraded i { background:var(--degraded); box-shadow:0 0 0 5px var(--degraded-w); }
+.say.down i { background:var(--down); box-shadow:0 0 0 5px var(--down-w); }
+.say p { margin:0; font-size:28px; font-weight:720; letter-spacing:-.022em; line-height:1.25; }
+.say p .which { font-weight:600; color:var(--ink-2); }
+.at { color:var(--dim); font-size:13.5px; margin:0 0 0 28px; }
+h2 { font-size:12.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--dim); margin:38px 0 10px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+.said { padding:12px 16px; margin-bottom:22px; font-weight:560; }
+.comp { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 18px; }
+.comp + .comp { border-top:1px solid var(--line); }
+.comp .n { font-weight:560; overflow-wrap:anywhere; }
+.state { display:inline-flex; align-items:center; gap:7px; font-weight:620; font-size:14px; white-space:nowrap; }
+.state::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; }
+.state.operational { color:var(--ok-ink); } .state.degraded { color:var(--degraded-ink); } .state.down { color:var(--down-ink); }
+.inc { padding:18px 18px 8px; } .inc + .inc { border-top:1px solid var(--line); }
+.inc .t { font-size:16px; font-weight:660; line-height:1.4; overflow-wrap:anywhere; }
+.inc .m { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; color:var(--dim); font-size:13.5px; margin-top:4px; }
+.phase { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px; font-size:12.5px; font-weight:640; }
+.phase.open { background:var(--down-w); color:var(--down-ink); } .phase.acknowledged { background:var(--degraded-w); color:var(--degraded-ink); }
+.phase.mitigated { background:var(--accent-w); color:var(--ink-2); } .phase.resolved { background:var(--ok-w); color:var(--ok-ink); }
+ol.tl { list-style:none; padding:0; margin:14px 0 6px; }
+ol.tl li { position:relative; padding:0 0 14px 22px; color:var(--ink-2); overflow-wrap:anywhere; }
+ol.tl li::before { content:""; position:absolute; left:4px; top:7px; width:7px; height:7px; border-radius:50%; background:var(--panel); box-shadow:0 0 0 2px var(--line-2); }
+ol.tl li::after { content:""; position:absolute; left:7px; top:16px; bottom:-2px; width:1px; background:var(--line); }
+ol.tl li:last-child::after { display:none; }
+ol.tl li.first::before { background:var(--line-2); }
+ol.tl .w { display:block; font-size:12.5px; font-weight:620; color:var(--dim); font-variant-numeric:tabular-nums; }
+.quiet { padding:16px 18px; color:var(--dim); }
+form.follow { display:flex; gap:8px; flex-wrap:wrap; padding:14px 16px; }
+form.follow p { flex:1 1 100%; margin:0 0 4px; color:var(--dim); font-size:13.5px; }
+form.follow input { flex:1; min-width:200px; min-height:44px; padding:0 12px; border-radius:10px; border:1px solid var(--line-2); background:var(--bg); color:var(--ink); font:inherit; }
+form.follow input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-w); }
+form.follow button { min-height:44px; padding:0 18px; border-radius:10px; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent); font:inherit; font-weight:650; cursor:pointer; }
+.foot { color:var(--dim); font-size:13px; margin-top:36px; text-align:center; }
+@media (max-width:560px) { main { padding-top:24px; } .say p { font-size:23px; } .say i { margin-top:8px; } }
+</style>
+</head>
+<body>
+<main>
+{{if .Inside}}<div class="inside"><span>The inside view: every open incident and every note, as the desk sees them.</span><a href="/">Back to the desk</a></div>{{end}}
+<h1>{{.Page.Title}}</h1>
+{{if .Said}}<div class="panel said" role="status">{{.Said}}</div>{{end}}
+<div class="say {{.Page.Overall}}"><i></i><p>{{if eq .Page.Overall "operational"}}All systems operational{{else if eq .Page.Overall "degraded"}}Some systems are degraded{{else}}Some systems are down{{end}}{{if ne .Page.Overall "operational"}}{{$n := 0}}{{range .Page.Components}}{{if ne .State "operational"}}{{if $n}}, {{else}}<span class="which">: {{end}}{{$n = 1}}{{.Name}}{{end}}{{end}}{{if $n}}</span>{{end}}{{end}}.</p></div>
+<p class="at">{{if .Page.Incidents}}{{len .Page.Incidents}} incident{{if ne (len .Page.Incidents) 1}}s{{end}} in progress. {{end}}Checked {{clock .Page.At}} UTC.</p>
+
+{{if .Page.Components}}
+<h2>Components</h2>
+<div class="panel">
+{{range .Page.Components}}<div class="comp"><span class="n">{{.Name}}</span><span class="state {{.State}}">{{if eq .State "operational"}}Operational{{else if eq .State "degraded"}}Degraded{{else}}Down{{end}}</span></div>{{end}}
+</div>
+{{end}}
+
+<h2>Happening now</h2>
+<div class="panel">
+{{range .Page.Incidents}}
+<article class="inc">
+  <div class="t">{{if $.Inside}}{{named .Title}}{{else}}{{.Title}}{{end}}</div>
+  <div class="m"><span class="phase {{.State}}">{{if eq .State "open"}}Investigating{{else if eq .State "acknowledged"}}Being worked on{{else}}Mitigated, watching{{end}}</span><span>for {{dur ($.Page.At.Sub .OpenedAt)}}</span></div>
+  <ol class="tl">
+    <li class="first"><span class="w">{{clock .OpenedAt}} UTC</span>We started looking into it.</li>
+    {{range .Updates}}<li><span class="w">{{clock .At}} UTC</span>{{if $.Inside}}{{named .Text}}{{else}}{{.Text}}{{end}}</li>{{end}}
+  </ol>
+</article>
+{{else}}
+<div class="quiet">{{if eq .Page.Overall "operational"}}Nothing is happening now.{{else}}{{range .Page.Components}}{{if ne .State "operational"}}<p style="margin:0 0 4px"><b>{{.Name}}</b> is {{if eq .State "down"}}down{{else}}degraded{{end}}. We are looking into it.</p>{{end}}{{end}}{{end}}</div>
+{{end}}
+</div>
+
+{{if .Page.Resolved}}
+<h2>Resolved this week</h2>
+<div class="panel">
+{{range .Page.Resolved}}
+<article class="inc">
+  <div class="t">{{if $.Inside}}{{named .Title}}{{else}}{{.Title}}{{end}}</div>
+  <div class="m"><span class="phase resolved">Resolved</span><span>opened {{clock .OpenedAt}} UTC</span></div>
+  {{if .Updates}}<ol class="tl">{{range .Updates}}<li><span class="w">{{clock .At}} UTC</span>{{if $.Inside}}{{named .Text}}{{else}}{{.Text}}{{end}}</li>{{end}}</ol>{{end}}
+</article>
+{{end}}
+</div>
+{{end}}
+
+{{if .Follow}}
+<h2>Follow by email</h2>
+<div class="panel">
+<form method="post" action="/follow" class="follow">
+  <p>Get each update on a public incident by email. You confirm first, and every mail has a link to stop.</p>
+  <input type="email" name="email" required placeholder="Your email address" aria-label="Your email address" autocomplete="email">
+  <button type="submit">Follow</button>
+</form>
+</div>
+{{end}}
+<div class="foot">Updated {{clock .Page.At}} UTC</div>
+</main>
+</body>
+</html>

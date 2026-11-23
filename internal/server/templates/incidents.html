@@ -1,0 +1,452 @@
+{{define "title"}}{{if .LiveCount}}({{.LiveCount}}) {{end}}Home · dispatch{{end}}
+{{define "style"}}
+/* Home: the queue in the middle, the selected incident or the estate on the right. */
+.home { display:grid; grid-template-columns:minmax(440px, 560px) minmax(0, 1fr); height:100vh; min-height:0; }
+.queue { display:flex; flex-direction:column; min-height:0; background:var(--panel); border-right:1px solid var(--line); }
+.qhead { flex:none; padding:16px 18px 0; border-bottom:1px solid var(--line); }
+.say { font-size:15px; line-height:1.4; font-weight:620; letter-spacing:-.005em; overflow-wrap:anywhere; }
+.say.hot { color:var(--crit-ink); }
+.say.calm { color:var(--ok-ink); }
+.qtop { display:flex; align-items:center; gap:10px; margin-top:12px; }
+.qtop h1 { font-size:13px; font-weight:650; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; }
+.qtop .seg { margin-left:auto; }
+.views { display:grid; grid-template-columns:repeat(5, auto); justify-content:start; gap:0 2px; margin-top:8px; }
+.views a { display:inline-flex; align-items:center; gap:5px; min-height:36px; padding:0 8px; border-bottom:2px solid transparent; color:var(--dim); font-weight:560; font-size:13px; white-space:nowrap; }
+.views a:hover { color:var(--ink); }
+.views a.on { color:var(--ink); font-weight:650; border-bottom-color:var(--ink); }
+.views .c { font:650 12px/1 var(--mono); color:var(--faint); }
+.views a.hot .c { color:var(--crit-ink); }
+.qbody { flex:1; overflow-y:auto; min-height:0; }
+.qfoot { border-top:1px solid var(--line); margin-top:8px; padding:8px 18px; display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--dim); }
+
+/* the queue: every row hangs on one shared clock, its spine */
+.clockhead, .qr { display:grid; grid-template-columns:4px 40px minmax(0, 1fr) 76px 46px; column-gap:10px; }
+.clockhead { padding:8px 18px 0 14px; font:12px/1.2 var(--mono); color:var(--faint); }
+.clockhead .ticks { grid-column:3 / 5; position:relative; height:14px; }
+.clockhead .ticks span { position:absolute; top:0; white-space:nowrap; transform:translateX(-50%); }
+.clockhead .ticks span:first-child { transform:none; }
+.clockhead .ticks span.end { transform:translateX(-100%); }
+.qsec { display:flex; align-items:baseline; gap:8px; padding:12px 18px 5px; position:sticky; top:0; z-index:2; background:var(--panel); }
+.qsec b { font-size:13px; font-weight:680; }
+.qsec .c { font:650 12px var(--mono); color:var(--faint); }
+.qsec .why { font-size:12.5px; color:var(--dim); }
+.qsec.hot b { color:var(--crit-ink); }
+.qr { position:relative; align-items:start; row-gap:3px; padding:9px 18px 9px 14px; border-top:1px solid var(--line); cursor:pointer; outline:none; }
+.qr:hover { background:var(--hover); }
+.qr:focus-visible { box-shadow:inset 0 0 0 2px var(--accent); border-radius:0; }
+.qr.paging { background:color-mix(in srgb, var(--crit-w) 70%, var(--panel)); }
+.qr.on { background:var(--sel); }
+.qr.on::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent); }
+.qr .sb { grid-row:1 / span 3; align-self:stretch; border-radius:2px; background:var(--line-2); }
+.qr .sb.critical { background:var(--crit); } .qr .sb.warning { background:var(--warn); } .qr .sb.info { background:var(--info); }
+.qr .num { grid-row:1; font:650 12.5px/1.45 var(--mono); color:var(--ink-2); padding-top:1px; }
+.qr .t { grid-row:1; grid-column:3; font-size:14px; line-height:1.4; font-weight:600; overflow-wrap:break-word; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.qr.paging .t { font-weight:680; }
+.qr .t::after { content:""; position:absolute; inset:0; z-index:0; }
+.qr .age { grid-row:1; grid-column:4; text-align:right; font:12.5px/1.45 var(--mono); color:var(--ink-2); white-space:nowrap; padding-top:1px; }
+.qr .age small { display:block; font:12px var(--font); color:var(--dim); }
+.qr .slot { grid-row:1 / span 2; grid-column:5; justify-self:end; margin-left:6px; }
+.qr .slot .av { margin-top:1px; }
+.qr .m { grid-row:2; grid-column:3 / 5; display:flex; flex-wrap:wrap; gap:3px 10px; align-items:center; font-size:12.5px; color:var(--dim); }
+.qr .svc { font-family:var(--mono); font-size:12px; color:var(--ink-2); overflow-wrap:anywhere; }
+.qr form, .qr button { position:relative; z-index:1; }
+button.take { min-height:28px; padding:0 8px; border-radius:999px; border:1.5px dashed var(--crit); background:transparent; color:var(--crit-ink); font-size:12px; font-weight:650; }
+button.take:hover { background:var(--crit-w); }
+.spine { grid-row:3; grid-column:3 / 5; position:relative; height:14px; margin-top:4px; }
+.spine::before { content:""; position:absolute; left:0; right:0; top:6px; height:2px; background:var(--line); border-radius:1px; }
+.spine .age-bar { position:absolute; top:4px; height:6px; border-radius:3px; min-width:4px; opacity:.35; }
+.spine .age-bar.critical { background:var(--crit); } .spine .age-bar.warning { background:var(--warn); } .spine .age-bar.info { background:var(--info); }
+.spine .age-bar.clip { border-top-left-radius:0; border-bottom-left-radius:0; }
+.spine .fire { position:absolute; top:1px; width:2px; height:12px; margin-left:-1px; border-radius:1px; background:var(--crit); }
+.qr .spine .fire { background:currentColor; }
+.qr:has(.sb.critical) .spine { color:var(--crit); } .qr:has(.sb.warning) .spine { color:var(--warn); } .qr:has(.sb.info) .spine { color:var(--info); }
+.spine .mv { position:absolute; top:2px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--panel); }
+.spine .mv.acknowledged { background:var(--warn); } .spine .mv.mitigated { background:var(--info); }
+.spine b { position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--ink-2); }
+.qr.settling { grid-template-rows:auto; align-items:center; padding-top:6px; padding-bottom:6px; }
+.qr.settling .sb { grid-row:1; opacity:.5; }
+.qr.settling .t { -webkit-line-clamp:2; font-weight:500; font-size:13px; color:var(--ink-2); }
+.qr.settling .num { color:var(--dim); }
+.qr.settling .age { color:var(--ok-ink); display:flex; flex-direction:row-reverse; gap:4px; align-items:baseline; justify-content:flex-start; }
+.qr.settling .age small { display:inline; }
+.qr.settling .age { font-size:12px; }
+.qr.settling .slot { grid-row:1; }
+.qr.settling { grid-template-columns:4px 40px minmax(0, 1fr) auto auto; }
+.pnext { display:none; }
+.folded { padding:10px 18px 12px 68px; font-size:13px; color:var(--faint); border-top:1px solid var(--line); }
+.band { display:none; border-top:1px solid var(--line-2); }
+.calm-q { padding:28px 18px; }
+.calm-q b { display:block; font-size:15px; margin-bottom:4px; }
+.calm-q p { color:var(--dim); }
+
+/* board: the same rows, in state columns, in workflow order */
+.board { display:flex; gap:10px; padding:14px; align-items:flex-start; }
+.col { flex:1 1 0; min-width:0; }
+.col.bare { flex:0 0 112px; }
+.col h3 { font-size:12.5px; font-weight:650; color:var(--ink-2); display:flex; gap:6px; margin:0 0 8px; }
+.col h3 span { font-family:var(--mono); color:var(--faint); }
+.card { position:relative; border:1px solid var(--line); border-left:3px solid var(--line-2); border-radius:7px; padding:8px 9px 6px; margin-bottom:8px; background:var(--panel); cursor:pointer; outline:none; }
+.card:hover { background:var(--hover); }
+.card.paging { background:color-mix(in srgb, var(--crit-w) 70%, var(--panel)); }
+.card.critical { border-left-color:var(--crit); } .card.warning { border-left-color:var(--warn); } .card.info { border-left-color:var(--info); }
+.card.on { box-shadow:0 0 0 2px var(--accent); }
+.card:focus-visible { box-shadow:0 0 0 2px var(--accent); }
+.card .k { display:flex; align-items:center; gap:8px; font:12.5px var(--mono); color:var(--ink-2); margin-bottom:4px; }
+.card .k .num { font-weight:650; }
+.card .k .age { margin-left:auto; white-space:nowrap; }
+.card .k .slot { flex:none; }
+.card .ct { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; font-size:13px; line-height:1.35; font-weight:600; overflow-wrap:break-word; }
+.card .ct::after { content:""; position:absolute; inset:0; z-index:0; }
+.card .cm { display:flex; flex-wrap:wrap; gap:2px 8px; align-items:center; margin-top:4px; font-size:12px; color:var(--dim); }
+.card .cm .svc { font:12px var(--mono); color:var(--ink-2); overflow-wrap:anywhere; }
+.card form, .card button { position:relative; z-index:1; }
+.card .spine { margin-top:6px; }
+.home.boarded { grid-template-columns:minmax(0, 1fr) minmax(360px, 38%); }
+.col .none { font-size:12.5px; color:var(--faint); }
+
+{{template "ribbon-style"}}
+/* preview */
+.side { overflow-y:auto; min-height:0; background:var(--bg); }
+.pv { max-width:880px; padding:22px 32px 48px; }
+.pvtop { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--dim); margin-bottom:8px; }
+.pvtop .grow { flex:1; }
+.boarded .pvtop { flex-wrap:nowrap; }
+.boarded .pvtop .quiet, .boarded .pvtop kbd { display:none; }
+.pv h2 { font-size:21px; line-height:1.3; font-weight:700; letter-spacing:-.015em; overflow-wrap:anywhere; }
+.facts { display:flex; flex-wrap:wrap; gap:6px 18px; margin:10px 0 18px; font-size:13px; color:var(--dim); }
+.facts > span { display:inline-flex; align-items:center; gap:6px; }
+.facts b { color:var(--ink); font-weight:620; overflow-wrap:anywhere; }
+.facts .av { width:22px; height:22px; font-size:12px; }
+.phase { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; margin:0; padding:0; list-style:none; }
+.phase li { position:relative; padding:10px 4px 0 0; font-size:12.5px; color:var(--faint); min-width:0; overflow-wrap:anywhere; }
+.phase li::before { content:""; position:absolute; left:0; right:0; top:0; height:4px; border-radius:2px; background:var(--line); }
+.phase li.done { color:var(--ink-2); } .phase li.done::before { background:var(--dim); }
+.phase li.now { color:var(--ink); font-weight:650; } .phase li.now::before { background:var(--accent); }
+.phase li small { display:block; font:12px var(--mono); font-weight:400; color:var(--dim); }
+.lead { margin:20px 0 0; max-width:70ch; }
+.lead p { font-size:14.5px; line-height:1.6; overflow-wrap:anywhere; white-space:pre-line; }
+.lead small { display:block; margin-top:4px; font-size:12.5px; color:var(--dim); }
+.next { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:20px; padding:14px 16px; border-radius:10px; background:var(--accent-w); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
+.next.hot { background:var(--crit-w); border-color:color-mix(in srgb, var(--crit) 35%, transparent); }
+.next .say-next { flex:1; min-width:240px; }
+.next .lbl { font-size:11.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:4px; }
+.next.hot .lbl { color:var(--crit-ink); }
+.next p { font-size:14px; line-height:1.45; }
+.next .go { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px; }
+.home button.hot kbd, .home button.primary kbd { opacity:1; }
+.next .also { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-start; }
+.pv h3 { display:flex; align-items:baseline; gap:10px; margin:26px 0 8px; font-size:12px; font-weight:680; letter-spacing:.05em; text-transform:uppercase; color:var(--dim); }
+.pv h3 span { text-transform:none; letter-spacing:0; font-weight:500; color:var(--faint); font-size:12.5px; }
+.pv h3 a { margin-left:auto; text-transform:none; letter-spacing:0; font-weight:600; font-size:13px; }
+.feed { list-style:none; margin:0; padding:0; }
+.feed li { display:grid; grid-template-columns:96px minmax(0, 1fr); gap:12px; padding:7px 0; border-top:1px solid var(--line); font-size:13px; overflow-wrap:anywhere; }
+.feed .tm { font:12px var(--mono); color:var(--dim); }
+.riblg { margin-top:2px; }
+.differ { margin-top:10px; font-size:13px; color:var(--dim); }
+.note { margin-top:22px; display:flex; flex-direction:column; gap:8px; }
+.note textarea { min-height:64px; }
+.note label.field > span { display:flex; align-items:center; gap:8px; }
+.legend { display:flex; gap:6px 14px; flex-wrap:wrap; font-size:12px; color:var(--dim); margin-top:8px; }
+.legend span { display:inline-flex; align-items:center; gap:6px; }
+.legend i { width:12px; height:10px; border-radius:2px; display:inline-block; background:var(--cell); }
+.legend i.critical { background:var(--crit); } .legend i.warning { background:var(--warn); } .legend i.info { background:var(--info); }
+.legend i.quiet { background:repeating-linear-gradient(135deg, var(--crit) 0 1.5px, transparent 1.5px 4px); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crit) 45%, transparent); }
+
+/* estate: service lanes on the week's clock, and the noise */
+.estate { padding:22px 32px 48px; max-width:1180px; }
+.estate h2 { font-size:15px; font-weight:690; }
+.estate .sub { color:var(--dim); font-size:13px; margin:2px 0 12px; max-width:72ch; }
+.estate h2 + .sub + * { margin-top:0; }
+.estate .more-h { margin-top:34px; }
+.lanes { border-top:1px solid var(--line-2); }
+.lhead, .lane { display:grid; grid-template-columns:minmax(150px, 240px) minmax(0, 1fr) 70px; column-gap:16px; }
+.lhead { padding:8px 0 4px; font-size:12px; color:var(--faint); border-bottom:1px solid var(--line); }
+.lhead .days { position:relative; height:16px; }
+.lhead .days span { position:absolute; top:0; padding-left:4px; border-left:1px solid var(--line-2); font-family:var(--mono); white-space:nowrap; }
+.lhead > span:last-child { text-align:right; }
+.lane { padding:8px 0; border-bottom:1px solid var(--line); align-items:start; }
+.lane .ln { min-width:0; }
+.lane .ln a { font:560 13px/1.35 var(--mono); overflow-wrap:anywhere; }
+.lane .ln a:hover { text-decoration:underline; }
+.lane .ln small { display:block; font-size:12px; color:var(--dim); }
+.lane .strip { height:14px; gap:1px; }
+.lane .fires { text-align:right; font:650 13px var(--mono); }
+.lane .fires small { display:block; font:11.5px var(--font); color:var(--dim); font-weight:400; }
+.obrow { position:relative; display:block; height:20px; margin-top:4px; }
+.obrow:hover .obl b { text-decoration:underline; }
+.ob { position:absolute; top:4px; height:8px; border-radius:2px; min-width:4px; }
+.ob.critical { background:var(--crit); } .ob.warning { background:var(--warn); } .ob.info { background:var(--info); }
+.ob.settling { background:repeating-linear-gradient(135deg, var(--ok) 0 2px, transparent 2px 5px); box-shadow:inset 0 0 0 1px var(--ok); }
+.ob.clip { border-top-left-radius:0; border-bottom-left-radius:0; }
+.obl { position:absolute; top:-1px; display:inline-flex; align-items:center; gap:5px; height:18px; padding:0 6px; font-size:12px; white-space:nowrap; color:var(--ink-2); background:var(--bg); border-radius:3px; }
+.obl b { font:650 12px var(--mono); color:var(--ink); }
+.obl .av { width:22px; height:22px; font-size:12px; }
+.silent { padding:10px 0; font-size:13px; color:var(--dim); border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.silent b { color:var(--ink-2); font-weight:600; }
+.noise { border-top:1px solid var(--line-2); }
+.nz { display:grid; grid-template-columns:minmax(0, 1fr) 90px 90px auto; gap:4px 16px; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+.nz .an { font:600 13px var(--mono); overflow-wrap:anywhere; }
+.nz .nbar { grid-column:1; margin-top:4px; }
+.nz .n { font:13px var(--mono); text-align:right; color:var(--ink-2); grid-row:1 / span 2; }
+.nz .n small { display:block; font:11.5px var(--font); color:var(--dim); }
+.nz .act { grid-row:1 / span 2; }
+.noise .key { margin-top:10px; }
+
+@media (min-width:1728px) {
+  .home { grid-template-columns:minmax(600px, 680px) minmax(0, 1fr); }
+  .band { display:block; }
+  .band .estate { padding:20px 18px 32px; }
+  .band .lhead, .band .lane { grid-template-columns:minmax(120px, 170px) minmax(0, 1fr) 56px; column-gap:10px; }
+  .band .nz { grid-template-columns:minmax(0, 1fr) 70px 70px auto; gap:4px 10px; }
+}
+@media (max-width:1180px) {
+  .home { grid-template-columns:minmax(400px, 480px) minmax(0, 1fr); }
+  .pv, .estate { padding:20px 22px 40px; }
+}
+@media (max-width:1100px) and (min-width:861px) {
+  .home { grid-template-columns:1fr; height:auto; }
+  .queue { border-right:0; border-bottom:1px solid var(--line); }
+  .qbody, .side { overflow:visible; }
+}
+@media (max-width:860px) {
+  .home { display:block; height:auto; }
+  .home.boarded { display:block; }
+  .queue { border-right:0; background:var(--bg); }
+  .qhead { padding:14px 16px 0; background:var(--bg); }
+  .say { font-size:16px; }
+  .qtop .seg, .qfoot, .clockhead, .spine, .side, .band, .qr .slot { display:none; }
+  .views { grid-template-columns:repeat(5, minmax(0, 1fr)); gap:0; }
+  .views a { flex-direction:column; justify-content:center; gap:1px; min-height:48px; padding:4px 2px; font-size:12px; }
+  .views .c { order:-1; font-size:14px; }
+  .views .l { white-space:nowrap; }
+  .qbody { overflow:visible; }
+  .qsec { padding:16px 16px 6px; background:var(--bg); top:52px; }
+  .qr, .qr.settling { grid-template-columns:4px 40px minmax(0, 1fr) auto; padding:12px 16px 12px 12px; background:var(--panel); }
+  .qr.paging { background:color-mix(in srgb, var(--crit-w) 70%, var(--panel)); }
+  .qr.on { background:var(--panel); } .qr.on::before { display:none; }
+  .qr .sb { grid-row:1 / span 3; }
+  .qr .t { font-size:15px; }
+  /* A phone shows each title whole; the duration sits on the line below. */
+  .qr .t, .qr.settling .t, .card .ct { display:block; -webkit-line-clamp:none; overflow:visible; grid-column:3 / 5; }
+  .qr .age { grid-row:2; grid-column:4; align-self:center; }
+  .qr .m { grid-column:3; }
+  .qr.settling .age { grid-column:3 / 5; justify-content:flex-end; }
+  .qr .age small { font-size:12px; }
+  .pnext { grid-row:3; grid-column:3 / 5; display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--ink-2); }
+  .qr.settling .pnext { grid-row:2; }
+  .qr.settling .sb { grid-row:1 / span 2; }
+  .pnext .who { display:inline-flex; align-items:center; gap:6px; }
+  .pnext .who .av { width:28px; height:28px; font-size:12px; }
+  .pnext form, .pnext button { width:100%; }
+  .folded { padding-left:16px; }
+  .board { flex-direction:column; align-items:stretch; padding:12px 16px; }
+  .col, .col.bare { flex:none; }
+  .card button.take { min-height:var(--tap); padding:0 12px; }
+  .card { min-height:var(--tap); }
+}
+{{end}}
+
+{{define "slot"}}{{$r := .}}{{if $r.Owner}}<span class="slot"><span class="av" title="{{who $r.Owner}} holds it">{{initials $r.Owner}}</span></span>{{else}}<form class="slot" method="post" action="/incidents/{{$r.ID}}/assign" data-done="You hold #{{$r.ID}}." data-event="incident.assign"><input type="hidden" name="me" value="1"><input type="hidden" name="back" value="{{$r.Back}}"><button type="submit" class="take" title="Take it">Take</button></form>{{end}}{{end}}
+{{define "spine"}}{{$r := .}}<div class="spine" aria-hidden="true"><i class="age-bar {{$r.Severity}}{{if $r.Bar.Clipped}} clip{{end}}" style="left:{{printf "%.2f" $r.Bar.Left}}%;width:{{printf "%.2f" $r.Bar.Width}}%"></i>{{range $r.Bar.Fires}}<i class="fire" style="left:{{printf "%.2f" .}}%"></i>{{end}}{{range $r.Bar.Moves}}<i class="mv {{.Kind}}" style="left:{{printf "%.2f" .Left}}%"></i>{{end}}<b style="left:{{printf "%.2f" $r.Bar.Now}}%"></b></div>{{end}}
+
+{{define "qrow"}}{{$r := .}}
+{{if $r.Settling}}
+<div class="qr settling{{if $r.On}} on{{end}}" data-row tabindex="0" data-href="/incidents/{{$r.ID}}" data-pick="{{$r.Href}}" data-pick-id="{{$r.ID}}">
+  <i class="sb {{$r.Severity}}" title="{{cap $r.Severity}}"></i>
+  <span class="num">#{{$r.ID}}</span>
+  <a class="t" href="/incidents/{{$r.ID}}" tabindex="-1" title="{{$r.Title}}">{{whole $r.Title}}</a>
+  <div class="age" title="Closes itself in this long unless an alert fires"><time data-until="{{isop $r.ClosesAt}}">{{dur ($r.ClosesAt.Sub $r.At)}}</time><small>closes in</small></div>
+  <form class="slot" method="post" action="/incidents/{{$r.ID}}/state" data-done="#{{$r.ID}} resolved." data-event="incident.state" data-attr="resolved"><input type="hidden" name="to" value="resolved"><input type="hidden" name="back" value="{{$r.Back}}"><button type="submit" class="sm quiet" title="It is fixed; close it now">Resolve</button></form>
+</div>
+{{else}}
+<div class="qr{{if $r.On}} on{{end}}{{if $r.Paging}} paging{{end}}" data-row tabindex="0" data-href="/incidents/{{$r.ID}}" data-pick="{{$r.Href}}" data-pick-id="{{$r.ID}}">
+  <i class="sb {{$r.Severity}}" title="{{cap $r.Severity}}"></i>
+  <span class="num">#{{$r.ID}}</span>
+  <a class="t" href="/incidents/{{$r.ID}}" tabindex="-1" title="{{$r.Title}}">{{whole $r.Title}}</a>
+  <div class="age" title="Open for this long"><time data-since="{{iso $r.OpenedAt}}">{{dur ($r.Age $r.At)}}</time></div>
+  {{template "slot" $r}}
+  <div class="m">
+    <span class="sev {{$r.Severity}}">{{cap $r.Severity}}</span>
+    <span class="svc">{{$r.Service}}</span>
+    {{if $r.FiringAlerts}}<span class="firing">{{$r.FiringAlerts}} firing</span>{{else if $r.Alerts}}<span>none firing</span>{{end}}
+    {{if ne (print $r.State) "open"}}<span class="st {{$r.State}}">{{cap $r.State}}</span>{{end}}
+  </div>
+  {{template "spine" $r}}
+  {{if $r.Needs}}{{with $r.Move.To}}<div class="pnext"><form method="post" action="/incidents/{{$r.ID}}/state" data-done="#{{$r.ID}} {{.}}." data-event="incident.state" data-attr="{{.}}"><input type="hidden" name="to" value="{{.}}"><input type="hidden" name="back" value="{{$r.Back}}"><button type="submit" class="block primary">{{$r.Move.Label}}</button></form></div>{{end}}{{end}}
+</div>
+{{end}}
+{{end}}
+
+{{define "estate"}}
+    <div class="estate">
+      <h2>Services, last 7 days</h2>
+      <p class="sub">Worst severity that fired in each 4-hour cell, UTC. Bars under a lane are what is open on it now, from when it opened; they grow at the right edge until someone closes them.</p>
+      {{if .Lanes}}
+      <div class="lanes">
+        <div class="lhead" aria-hidden="true"><span>Service</span><div class="days">{{range .LaneTicks}}<span style="left:{{printf "%.2f" .Left}}%">{{.Label}}</span>{{end}}</div><span>Firings</span></div>
+        {{range .Lanes}}{{$l := .}}
+        <div class="lane">
+          <div class="ln"><a href="/history?service={{.Service}}">{{.Service}}</a><small>{{.Incidents}} incident{{if ne .Incidents 1}}s{{end}}{{with .Open}}, {{len .}} open{{end}}</small></div>
+          <div>
+            {{template "strip" (strip (print .Service ": alerts fired " .Firings " times in seven days") .Cells)}}
+            {{range index $.LaneBars .Service}}<a class="obrow" href="/?i={{.ID}}" data-pick="/?i={{.ID}}" title="#{{.ID}} {{.Title}}"><i class="ob {{.Severity}}{{if .Settling}} settling{{end}}{{if .Clipped}} clip{{end}}" style="left:{{printf "%.2f" .Left}}%;width:{{printf "%.2f" .Width}}%"></i><span class="obl" style="{{if .Ahead}}left:{{printf "%.2f" .Left}}%{{else}}right:{{printf "%.2f" .Right}}%{{end}}"><b>#{{.ID}}</b> {{if .Settling}}settling{{else if .Owner}}<span class="av">{{initials .Owner}}</span>{{else}}<span class="nobody">Nobody</span>{{end}}</span></a>{{end}}
+          </div>
+          <div class="fires">{{.Firings}}<small>firing{{if ne .Firings 1}}s{{end}}</small></div>
+        </div>
+        {{end}}
+        {{with .Silent}}<p class="silent"><b>{{len .}} more fired nothing this week:</b> {{range $n, $s := .}}{{if $n}}, {{end}}{{$s}}{{end}}.</p>{{end}}
+      </div>
+      <div class="legend"><span><i class="critical"></i>critical</span><span><i class="warning"></i>warning</span><span><i class="info"></i>info</span><span><i class="quiet"></i>open, nothing firing</span></div>
+      {{else}}
+      <p class="empty"><b>No incidents this week</b>A service shows here once something on it pages.</p>
+      {{end}}
+
+      <h2 class="more-h">Noise, last 7 days</h2>
+      <p class="sub">{{if .NoneActed}}Nobody acted on any of these.{{else}}The alerts that fired most.{{end}} One that fires and nobody acts on is a route to add.</p>
+      {{if .Noise}}
+      <div class="noise">
+        {{range .Noise}}
+        <div class="nz">
+          <span class="an">{{.Alert}}</span>
+          <span class="n">{{.Firings}}<small>firing{{if ne .Firings 1}}s{{end}}</small></span>
+          <span class="n">{{.Acted}} of {{.Incidents}}<small>acted on</small></span>
+          <span class="act">{{if $.Admin}}<a class="btn sm" href="/settings/routing?route={{print "alertname=" .Alert " => notice"}}">Quiet it</a>{{end}}</span>
+          {{template "noisebar" (nz . $.NoiseTop)}}
+        </div>
+        {{end}}
+        <div class="key">{{if not .NoneActed}}<span><i class="a"></i>acted on</span>{{end}}<span><i class="p"></i>incidents nobody took</span><span><i class="f"></i>repeat firings</span></div>
+      </div>
+      {{else}}
+      <p class="empty"><b>Quiet</b>No alert fired in the last seven days.</p>
+      {{end}}
+    </div>
+{{end}}
+
+{{define "content"}}
+<main class="home{{if .Board}} boarded{{end}}">
+  <section class="queue" aria-label="Queue">
+    <header class="qhead">
+      <div id="qsay" data-live><p class="say{{if eq .OpenCount 0}} calm{{end}}">{{.Headline}}</p></div>
+      <div class="qtop">
+        <h1>Queue</h1>
+        <div class="seg" role="group" aria-label="Layout">
+          <a href="{{.ListHref}}"{{if not .Board}} class="on" aria-current="true"{{end}} data-key="L" data-cmd="Show the queue as a list" data-group="Views">List <kbd>L</kbd></a>
+          <a href="{{.BoardHref}}"{{if .Board}} class="on" aria-current="true"{{end}} data-key="B" data-cmd="Show the queue as a board" data-group="Views">Board <kbd>B</kbd></a>
+        </div>
+      </div>
+      <nav class="views" id="views" data-live aria-label="Saved views">
+        {{range $n, $v := .Tabs}}<a href="{{$v.Href}}" class="{{if $v.On}}on{{end}}{{if $v.Hot}} hot{{end}}"{{if $v.On}} aria-current="page"{{end}} data-key="{{inc $n}}" data-cmd="View: {{$v.Label}}" data-group="Views"><span class="l">{{$v.Label}}</span> <span class="c">{{$v.Count}}</span></a>{{end}}
+      </nav>
+    </header>
+    <div class="qbody" id="queue" data-live>
+      {{if eq .OpenCount 0}}
+      <div class="calm-q"><b>Nothing is open.</b><p>An alert that pages lands here the moment it arrives. This week: {{.Week.Incidents}} incident{{if ne .Week.Incidents 1}}s{{end}}{{if .Week.MTTRSeconds}}, restored in {{secs .Week.MTTRSeconds}} on average{{end}}.</p></div>
+      {{else if eq .Visible 0}}
+      <div class="calm-q"><b>Nothing in this view.</b><p><a class="link" href="/">All open</a> has {{.OpenCount}}.</p></div>
+      {{else if .Board}}
+      <div class="board">
+        {{range .Columns}}
+        <div class="col{{if not .Rows}} bare{{end}}"><h3>{{.Name}} <span>{{len .Rows}}</span></h3>
+          {{range .Rows}}{{$r := .}}<div class="card {{.Severity}}{{if .On}} on{{end}}{{if .Paging}} paging{{end}}" data-row tabindex="0" data-href="/incidents/{{.ID}}" data-pick="{{.Href}}" data-pick-id="{{.ID}}">
+            <div class="k"><span class="num">#{{.ID}}</span>{{if .Settling}}<span class="age">closes in <time data-until="{{isop .ClosesAt}}">{{dur (.ClosesAt.Sub .At)}}</time></span>{{else}}<span class="age"><time data-since="{{iso .OpenedAt}}">{{dur (.Age .At)}}</time></span>{{template "slot" $r}}{{end}}</div>
+            <a class="ct" href="/incidents/{{.ID}}" tabindex="-1" title="{{.Title}}">{{whole .Title}}</a>
+            <div class="cm"><span class="sev {{.Severity}}">{{cap .Severity}}</span><span class="svc">{{.Service}}</span>{{if .FiringAlerts}}<span class="firing">{{.FiringAlerts}} firing</span>{{end}}</div>
+            {{if not .Settling}}{{template "spine" $r}}{{end}}
+          </div>{{else}}<p class="none">None</p>{{end}}
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="clockhead" aria-hidden="true"><span></span><span></span><div class="ticks">{{range $n, $t := .Clock.Labels}}<span style="left:{{printf "%.2f" $t.Left}}%"{{if eq $t.Left 100.0}} class="end"{{end}}>{{$t.Label}}</span>{{end}}</div></div>
+      {{range .Sections}}{{if .Rows}}
+        <div class="qsec{{if .Hot}} hot{{end}}"><b>{{.Name}}</b><span class="c">{{len .Rows}}</span><span class="why">{{.Why}}</span></div>
+        {{range .Rows}}{{template "qrow" .}}{{end}}
+      {{end}}{{end}}
+      {{with .Folded}}<p class="folded">{{.}}</p>{{end}}
+      {{end}}
+      <footer class="qfoot" aria-label="Keys"><span><kbd>J</kbd> <kbd>K</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>B</kbd> board</span><span><kbd>Esc</kbd> services</span><span><kbd>&#8984;K</kbd> actions</span></footer>
+      {{if .Preview}}<div class="band">{{template "estate" $}}</div>{{end}}
+    </div>
+  </section>
+
+  <section class="side" id="side" data-live aria-label="{{if .Preview}}Selected incident{{else}}Services and noise{{end}}">
+  {{with .Preview}}{{$p := .}}{{$i := .I}}
+    <article class="pv">
+      <div class="pvtop">
+        <span class="sev {{$i.Severity}}">{{cap $i.Severity}}</span><span class="mono">#{{$i.ID}}</span><span class="st {{$i.Phase}}">{{cap $i.Phase}}</span>
+        <span class="grow"></span>
+        <a class="btn quiet sm" href="{{$.EstateHref}}" data-pick="{{$.EstateHref}}" data-key="ESCAPE" data-cmd="Show services and noise" data-group="Views">Services <kbd>Esc</kbd></a>
+        <a class="btn sm" href="/incidents/{{$i.ID}}" data-key="O" data-cmd="Full page for #{{$i.ID}}" data-group="This incident">Full page <kbd>O</kbd></a>
+      </div>
+      <h2>{{whole $i.Title}}</h2>
+      <div class="facts">
+        <span>Owner {{if $i.Owner}}<span class="av">{{initials $i.Owner}}</span><b>{{who $i.Owner}}</b>{{else}}<b class="nobody">Nobody</b>{{end}}</span>
+        <span>Service <b class="mono">{{$i.Service}}</b></span>
+        {{with $i.Workload}}<span>Workload <b class="mono">{{.}}</b></span>{{end}}
+        <span>Open <b class="num"><time data-since="{{iso $i.OpenedAt}}">{{dur ($i.Age $.Now)}}</time></b></span>
+        {{if $i.Alerts}}<span>Alerts <b class="num">{{$i.FiringAlerts}} of {{$i.Alerts}} firing</b></span>{{end}}
+      </div>
+      <ol class="phase" id="phase" aria-label="Phase">
+        {{range .Phases}}<li class="{{.Class}}">{{.Name}}{{with .At}}<small>{{clock .}}</small>{{else}}{{if and (eq .Name "Resolved") $i.Settling}}<small>closes itself {{$i.ClosesAt.UTC.Format "15:04"}}</small>{{end}}{{end}}</li>{{end}}
+      </ol>
+      <div class="next{{if .Next.Hot}} hot{{end}}">
+        <div class="say-next"><div class="lbl">Next move</div><p>{{.Next.Say}}</p></div>
+        <div class="go">
+          {{with .Primary.To}}<form method="post" action="/incidents/{{$i.ID}}/state" data-done="#{{$i.ID}} {{.}}." data-event="incident.state" data-attr="{{.}}"><input type="hidden" name="to" value="{{.}}"><input type="hidden" name="back" value="{{$.Back}}"><button type="submit" class="primary" data-key="{{$p.Primary.Key}}" data-cmd="{{$p.Primary.Label}} #{{$i.ID}}" data-group="This incident">{{$p.Primary.Label}} <kbd>{{$p.Primary.Key}}</kbd></button></form>{{end}}
+          {{if or .Others .Take}}<div class="also">
+            {{if .Take}}<form method="post" action="/incidents/{{$i.ID}}/assign" data-done="You hold #{{$i.ID}}." data-event="incident.assign"><input type="hidden" name="me" value="1"><input type="hidden" name="back" value="{{$.Back}}"><button type="submit" class="sm" data-key="T" data-cmd="Take #{{$i.ID}}" data-group="This incident">Take <kbd>T</kbd></button></form>{{end}}
+            {{range .Others}}<form method="post" action="/incidents/{{$i.ID}}/state" data-done="#{{$i.ID}} {{.To}}." data-event="incident.state" data-attr="{{.To}}"><input type="hidden" name="to" value="{{.To}}"><input type="hidden" name="back" value="{{$.Back}}"><button type="submit" class="sm quiet" data-key="{{.Key}}" data-cmd="{{.Label}} #{{$i.ID}}" data-group="This incident">{{.Label}} <kbd>{{.Key}}</kbd></button></form>{{end}}
+          </div>{{end}}
+        </div>
+      </div>
+      <h3>Alerts and moves <span>{{clock $i.OpenedAt}} to now</span><a class="link" href="/incidents/{{$i.ID}}">Timeline</a></h3>
+      {{template "ribbon" .Strip}}
+      <div class="riblg">{{template "ribbon-legend" .Strip}}</div>
+      {{with .Summary}}{{if .Text}}<div class="lead"><p>{{named .Text}}</p><small>{{if eq .From "alert"}}From the alert {{.By}}{{else}}{{cap .From}} by {{who .By}}{{end}}</small></div>{{end}}{{end}}
+      {{with .Differ}}<p class="differ">{{.}}</p>{{end}}
+      {{with .Latest}}<h3>Latest</h3>
+      <ul class="feed">{{range .}}{{with .Run}}<li><span class="tm">{{clock .To}}</span><span>{{.Alert}}: {{if .Fired}}fired {{times .Fired}}{{if .Cleared}}, {{end}}{{end}}{{if .Cleared}}cleared {{times .Cleared}}{{end}}{{if .To.After .From}}, {{span .From .To}}{{end}}</span></li>{{else}}<li><span class="tm">{{clock .Event.At}}</span><span>{{named .Event.Text}}</span></li>{{end}}{{end}}</ul>{{end}}
+      <form class="note" method="post" action="/incidents/{{$i.ID}}/note" data-done="Note added to #{{$i.ID}}." data-clear data-event="incident.note"><input type="hidden" name="back" value="{{$.Back}}">
+        <label class="field"><span>Add a note <kbd>N</kbd></span><textarea name="text" rows="2" required placeholder="What you found or did" data-key="N" data-cmd="Add a note to #{{$i.ID}}" data-group="This incident"></textarea></label>
+        <div class="actions"><button type="submit" class="sm">Add note</button><label class="check"><input type="checkbox" name="public"> Show on the status page</label></div>
+      </form>
+    </article>
+  {{else}}
+    {{template "estate" $}}
+  {{end}}
+  </section>
+</main>
+<script>
+(function () {
+  // Picking a row shows it on the right in place: on a wide screen a click,
+  // or moving to it with J and K, fetches Home for it and swaps the pane.
+  var wide = window.matchMedia('(min-width: 861px)'), seq = 0, timer = 0;
+  function pick(href) {
+    var n = ++seq;
+    fetch(href, { headers: { 'X-Desk-Live': '1' }, credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (t) {
+        if (!t || n !== seq) return;
+        var doc = new DOMParser().parseFromString(t, 'text/html');
+        var fresh = doc.getElementById('side'), old = document.getElementById('side');
+        if (fresh && old) old.replaceWith(document.importNode(fresh, true));
+        history.replaceState(null, '', href);
+        var id = new URL(href, location.href).searchParams.get('i');
+        document.querySelectorAll('[data-pick-id]').forEach(function (r) { r.classList.toggle('on', r.getAttribute('data-pick-id') === id); });
+      })
+      .catch(function () {});
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-pick]');
+    if (!a || !wide.matches || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (e.target.closest('form, button')) return;
+    e.preventDefault(); clearTimeout(timer); pick(a.getAttribute('data-pick'));
+  });
+  document.addEventListener('focusin', function (e) {
+    var r = e.target.closest && e.target.closest('[data-row][data-pick]');
+    if (!r || !wide.matches || r.classList.contains('on')) return;
+    clearTimeout(timer); timer = setTimeout(function () { pick(r.getAttribute('data-pick')); }, 120);
+  });
+})();
+</script>
+{{end}}

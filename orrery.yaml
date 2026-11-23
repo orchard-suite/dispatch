@@ -1,0 +1,31 @@
+# What this repository builds, for the estate that reads it. redgreen, the
+# forge reader, reads this file from the repository and writes the service,
+# the APIs it provides, and the APIs it calls into the Orrery catalog; the
+# app itself writes none of it. `fields` and `relations` place it in the
+# estate's platform pillars (plat_pillar); an API key is the providing
+# service's key and its id. `icon.file` and each API's `spec` are paths in
+# this repository, and a test in internal/server fails while one is missing.
+service: github/orchard-suite/dispatch/cmd/dispatch
+icon:
+  name: dispatch
+  file: logo.svg
+fields:
+  category: Incidents
+relations:
+  pillars:
+  - platform/observability
+  - platform/outcomes
+provides:
+- id: incidents
+  title: Dispatch incidents API
+  kind: rest
+  spec: openapi.yaml
+  description: Incidents with their state, timeline, and time to acknowledge and restore.
+- id: alerts
+  title: Dispatch alert receiver
+  kind: event
+  spec: openapi.yaml
+  description: Alertmanager's webhook, which opens and resolves incidents.
+consumes:
+- github/orchard-suite/annals/cmd/annalsd/events
+- github/orchard-suite/orrery/catalog

@@ -1,0 +1,150 @@
+{{define "title"}}{{who .Email}} · dispatch{{end}}
+{{define "style"}}
+{{template "rows-style"}}
+.me-h { display:flex; align-items:center; gap:14px; }
+.me-h .av { width:44px; height:44px; font-size:16px; }
+.cols { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:24px; align-items:start; }
+.side { display:flex; flex-direction:column; gap:16px; }
+.inbox { list-style:none; margin:0; padding:0; }
+.inbox li { display:grid; grid-template-columns:70px minmax(0, 1fr) auto; gap:4px 12px; align-items:baseline; padding:10px 16px; }
+.inbox li + li { border-top:1px solid var(--line); }
+.inbox .t { overflow-wrap:anywhere; font-weight:560; }
+.inbox .what { display:inline-block; margin-right:8px; padding:0 6px; border-radius:5px; font-size:12px; font-weight:650; color:var(--ink-2); background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line); vertical-align:1px; }
+.inbox .m { display:flex; flex-wrap:wrap; gap:2px 12px; font-size:12.5px; color:var(--dim); margin-top:2px; }
+.inbox .when { font-size:12.5px; color:var(--dim); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.shifts { list-style:none; margin:0; padding:0; }
+.shifts li { padding:10px 16px; }
+.shifts li + li { border-top:1px solid var(--line); }
+.shifts li.now { box-shadow:inset 3px 0 0 var(--ok); }
+.shifts b { font-weight:650; }
+.shifts .m { font-size:12.5px; color:var(--dim); }
+.box h3 { font-size:14px; font-weight:680; padding:12px 16px 0; }
+.box .pad { padding:10px 16px 14px; display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
+.flash.ok { flex-direction:column; align-items:flex-start; }
+details.dnd summary { cursor:pointer; padding:12px 16px; font-weight:620; }
+details.dnd .md { padding:0 16px 14px; font-size:13px; }
+.cols.one { grid-template-columns:1fr; }
+.kg-h, .kr { display:grid; grid-template-columns:minmax(0, 1fr) repeat(var(--cols), 76px); gap:0 8px; align-items:center; padding:10px 16px; }
+.kg-h { padding-bottom:6px; font-size:12px; font-weight:650; color:var(--dim); text-align:center; }
+.kg h3 { padding:10px 16px 6px; border-top:1px solid var(--line); font-size:11.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); }
+.kr { border-top:1px solid var(--line); }
+.kr .kt b { font-weight:650; margin-right:8px; }
+.kr .kt .hint { margin-top:2px; }
+.kc { display:grid; place-items:center; min-height:32px; cursor:pointer; }
+.kc input { width:16px; height:16px; accent-color:var(--accent); margin:0; }
+.kc span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.kc.off { cursor:not-allowed; opacity:.45; }
+.kf { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:12px 16px; border-top:1px solid var(--line); }
+@media (max-width:1040px) { .cols { grid-template-columns:1fr; } }
+@media (max-width:860px) { .kg-h { display:none; } .kr { grid-template-columns:1fr 1fr; padding:12px; } .kr .kt { grid-column:1 / -1; } .kc { display:flex; gap:9px; place-items:initial; align-items:center; min-height:var(--tap); } .kc span { position:static; width:auto; height:auto; clip-path:none; font-size:13.5px; } }
+@media (max-width:860px) { .inbox li { grid-template-columns:auto minmax(0, 1fr); padding:12px; } .inbox .when { grid-column:2; } details.dnd summary { min-height:var(--tap); display:flex; align-items:center; } .inbox .m a.link { display:inline-flex; align-items:center; min-height:var(--tap); } }
+{{end}}
+{{define "content"}}
+<main class="page">
+  <div class="ph"><div class="me-h"><span class="av">{{initials .Email}}</span><div><h1>{{who .Email}}</h1><p class="lede">Everything this desk sent you, and how it reaches you. It has no app of its own: it uses the apps you already have.</p></div></div></div>
+  {{if .Done}}<div class="flash ok" data-flash>{{.Done}}</div>{{end}}
+  {{if .Bad}}<div class="flash bad" data-message>{{cap .Bad}}.</div>{{end}}
+
+  <div class="cols{{if not .Desk}} one{{end}}">
+    <section>
+      <div class="sh"><h2>What reached you</h2><span class="aside">newest first</span></div>
+      <div class="panel" id="inbox" data-live>
+        {{if .Inbox}}<ul class="inbox">
+        {{range .Inbox}}
+          <li>
+            <span class="sev {{if eq .Weight "page"}}critical{{else if eq .Weight "notify"}}warning{{else}}info{{end}}">{{cap .Weight}}</span>
+            <div><div class="t"><span class="what">{{.What}}</span>{{named .Title}}</div>
+              <div class="m"><span>from {{.Event.Producer}}</span>{{range .Event.Links}}<a class="link" href="{{.URL}}">{{.Title}}</a>{{end}}</div></div>
+            <span class="when" title="{{when .At}}">{{ago .At}} ago</span>
+          </li>
+        {{end}}
+        </ul>{{else}}<div class="empty"><b>Nothing yet</b>Every page, notify, and notice that reaches you shows here.</div>{{end}}
+      </div>
+    </section>
+
+    {{if .Desk}}<aside class="side">
+      <div class="panel box" id="shifts" data-live>
+        <h3>Your shifts</h3>
+        {{if .Shifts}}<ul class="shifts" style="margin-top:8px">
+        {{range .Shifts}}{{$now := and (not (.From.After $.Now)) (.To.After $.Now)}}
+          <li{{if $now}} class="now"{{end}}><b>{{.Schedule}}</b>
+            <div class="m">{{if $now}}On call now, for <time data-until="{{iso .To}}">{{dur (.To.Sub $.Now)}}</time>{{else}}{{when .From}} to {{when .To}}{{end}}</div></li>
+        {{end}}
+        </ul>{{else}}<div class="pad"><p class="hint">No shifts in the next two weeks.</p></div>{{end}}
+        <div class="pad" style="border-top:1px solid var(--line)">
+          <form method="post" action="/me/calendar" data-event="me.calendar" data-reload><button class="sm" type="submit">Make a calendar link</button></form>
+          <p class="hint">Shown once. Making another stops the old one.</p>
+        </div>
+      </div>
+      <div class="panel box">
+        <h3>Your agents</h3>
+        <div class="pad">
+          <p class="hint">An agent of yours can read the board, your list, and who is on call, and take, work, and resolve incidents as you, through the MCP server at <code>/mcp</code> on the API. Keep its token like a password.</p>
+          <form method="post" action="/me/token" data-event="me.token" data-reload><button class="sm" type="submit">Make a token that acts as me</button></form>
+        </div>
+      </div>
+    </aside>{{end}}
+  </div>
+
+  <section class="sec">
+    <div class="sh"><h2>What you are told about</h2><span class="aside">one row for each kind of event a product sends</span></div>
+    <div class="panel" id="kinds" data-live data-kinds>
+      {{with .Kinds}}{{if .Groups}}
+      <form method="post" action="/me/kinds" data-event="me.kinds" style="--cols:{{.Cols}}">
+        <div class="kg-h" aria-hidden="true"><span></span>{{range .Media}}<span>{{.Name}}</span>{{end}}<span>List only</span></div>
+        {{range .Groups}}
+        <div class="kg" role="group" aria-label="From {{.Producer}}">
+          <h3>From {{.Producer}}</h3>
+          {{range .Rows}}{{$row := .}}
+          <div class="kr" data-kind-row>
+            <div class="kt"><b>{{.Title}}</b><span class="sev {{if eq .Weight "page"}}critical{{else if eq .Weight "notify"}}warning{{else}}info{{end}}">{{cap .Weight}}</span>
+              {{if .Description}}<p class="hint">{{.Description}}</p>{{end}}
+              <p class="hint">{{if .Fixed}}Fixed: a page always goes by your page rule ({{.Rule}}), so someone always answers.{{else}}Left alone, it goes by your {{.Weight}} rule: {{.Rule}}.{{end}}</p></div>
+            {{if not .Fixed}}<input type="hidden" name="kind" value="{{.Kind}}">{{end}}
+            {{range $.Kinds.Media}}<label class="kc{{if or $row.Fixed (not .Has)}} off{{end}}"{{if and .Why (not $row.Fixed)}} title="{{.Why}}"{{end}}><input type="checkbox" name="m_{{$row.Kind}}" value="{{.M}}" data-medium{{if index $row.On .M}} checked{{end}}{{if or $row.Fixed (not .Has)}} disabled{{end}}><span>{{.Name}}</span></label>{{end}}
+            <label class="kc{{if .Fixed}} off{{end}}"><input type="checkbox" name="list_{{.Kind}}" value="on" data-list{{if .List}} checked{{end}}{{if .Fixed}} disabled{{end}}><span>List only</span></label>
+          </div>
+          {{end}}
+        </div>
+        {{end}}
+        <div class="kf"><button type="submit" class="primary sm">Save</button><p class="hint">Tick how you want to hear of a kind. <b>List only</b> keeps it on your list above and sends nothing. An event sent as a page ignores these and goes by your page rule.</p></div>
+      </form>
+      {{else}}<div class="empty"><b>No kinds yet</b>When a product tells this desk what kinds of events it sends, each one shows here for you to set.</div>{{end}}{{end}}
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sh"><h2>How you are reached</h2><span class="aside">only you change yours</span></div>
+    <div class="panel" id="reach-rows" data-live data-rows>{{template "reachrows" .Me}}</div>
+  </section>
+
+  <section class="sec">
+    <details class="panel dnd">
+      <summary>Let a page through Do Not Disturb</summary>
+      <div class="md">
+        <p>Your phone decides what rings through Do Not Disturb, so set it once.</p>
+        <ul>
+          <li><b>iPhone</b>: Settings, Focus, pick each Focus you use, then People, add a contact for this desk's SMS number; and Apps, add Teams or Discord if those carry your pages. In Teams, Settings, Notifications, turn on <i>Urgent messages</i> sounds.</li>
+          <li><b>Android</b>: Settings, Notifications, Do Not Disturb, People, Messages, allow the desk's SMS number as a starred contact; and Apps, allow Teams or Discord.</li>
+          <li><b>Discord</b>: User Settings, Notifications, keep desktop and mobile push on, and for a server the bot posts in, set notifications to all messages.</li>
+        </ul>
+        <p class="hint">Anything but a page waits out your quiet hours before it is sent at all; only a page should get through.</p>
+      </div>
+    </details>
+  </section>
+</main>
+<script>
+// A saved row is swapped in place; it is skipped while focus is in it.
+document.addEventListener('submit', function (e) {
+  var a = document.activeElement;
+  if (e.target.closest('[data-rows],[data-kinds]') && a && a !== document.body && a.blur) a.blur();
+}, true);
+// A kind is told by media or kept to the list, never both.
+document.addEventListener('change', function (e) {
+  var row = e.target.closest && e.target.closest('[data-kind-row]');
+  if (!row || !e.target.checked) return;
+  var other = e.target.hasAttribute('data-list') ? '[data-medium]' : '[data-list]';
+  row.querySelectorAll(other).forEach(function (b) { b.checked = false; });
+});
+</script>
+{{end}}

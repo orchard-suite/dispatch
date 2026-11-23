@@ -1,0 +1,187 @@
+{{define "title"}}Services and noise · dispatch{{end}}
+{{define "style"}}
+.lede b { color:var(--ink); font-weight:650; }
+.lede .p { white-space:nowrap; }
+.lede b.mono { font-size:13.5px; }
+.lede .hot { color:var(--crit-ink); font-weight:650; }
+#lanes { table-layout:fixed; }
+#lanes col.c-svc { width:276px; } #lanes col.c-inc { width:76px; } #lanes col.c-num { width:76px; } #lanes col.c-pg { width:58px; }
+#lanes th, #lanes td { padding-left:8px; padding-right:8px; }
+#lanes th:first-child, #lanes td:first-child { padding-left:16px; }
+#lanes th:last-child, #lanes td:last-child { padding-right:16px; }
+#lanes thead tr.chart th { position:static; padding-top:4px; padding-bottom:6px; font-weight:500; border-bottom:1px solid var(--line-2); }
+#lanes thead tr.chart th.lbl { vertical-align:bottom; color:var(--dim); font-size:12px; white-space:normal; line-height:1.35; }
+#lanes tbody td { vertical-align:top; padding-top:9px; padding-bottom:9px; }
+#lanes td.n { font-variant-numeric:tabular-nums; font-size:13px; padding-top:10px; white-space:nowrap; }
+#lanes td.n .dash { color:var(--faint); }
+.svc a { white-space:nowrap; font:600 12.5px/1.35 var(--mono); color:var(--ink); display:inline-flex; align-items:center; gap:7px; }
+.svc a:hover { text-decoration:underline; }
+.svc a i { width:8px; height:8px; border-radius:2px; flex-shrink:0; box-shadow:inset 0 0 0 1px var(--line-2); }
+.svc a i.critical { background:var(--crit); box-shadow:none; } .svc a i.warning { background:var(--warn); box-shadow:none; } .svc a i.info { background:var(--info); box-shadow:none; }
+.svc small { display:block; color:var(--dim); font-size:12px; margin:2px 0 0 15px; }
+.svc small .hot { color:var(--crit-ink); font-weight:620; }
+.tk .strip { height:14px; gap:1px; }
+.obrow { position:relative; display:block; height:20px; margin-top:4px; }
+.obrow:hover .obl b { text-decoration:underline; }
+.ob { position:absolute; top:5px; height:10px; border-radius:2px; min-width:4px; }
+.ob.critical { background:var(--crit); } .ob.warning { background:var(--warn); } .ob.info { background:var(--info); }
+.ob.settling { background:repeating-linear-gradient(135deg, var(--ok) 0 2px, transparent 2px 5px); box-shadow:inset 0 0 0 1px var(--ok); }
+.ob.clip { border-top-left-radius:0; border-bottom-left-radius:0; }
+.obl { position:absolute; top:-1px; display:inline-flex; align-items:center; gap:5px; height:18px; padding:0 6px; font-size:12px; white-space:nowrap; color:var(--ink-2); background:var(--panel); border-radius:3px; }
+.obl b { font:650 12px var(--mono); color:var(--ink); }
+.obl .av { width:20px; height:20px; font-size:11px; }
+.cticks { position:relative; height:16px; margin-top:4px; }
+.cticks span { position:absolute; top:0; padding-left:4px; border-left:1px solid var(--line-2); font:12px var(--mono); color:var(--dim); white-space:nowrap; }
+.days { position:relative; height:54px; display:flex; align-items:flex-end; gap:1px; }
+.days .d { flex:1; min-width:0; height:100%; display:flex; flex-direction:column-reverse; }
+.days .d i { display:block; min-height:2px; } .days .d i:first-child { border-radius:0 0 1px 1px; } .days .d i:last-child { border-radius:2px 2px 0 0; }
+.days .d i.critical { background:var(--crit); } .days .d i.warning { background:var(--warn); } .days .d i.info { background:var(--info); }
+.legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--dim); padding:10px 16px 12px; border-top:1px solid var(--line); }
+.legend span { display:inline-flex; align-items:center; gap:6px; }
+.legend i { display:inline-block; width:12px; height:8px; border-radius:2px; }
+.legend i.q { background:repeating-linear-gradient(135deg, var(--crit) 0 1.5px, transparent 1.5px 4px); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--crit) 45%, transparent); }
+.legend i.ob2 { height:8px; width:16px; background:var(--warn); } .legend i.st2 { height:8px; width:16px; background:repeating-linear-gradient(135deg, var(--ok) 0 2px, transparent 2px 5px); box-shadow:inset 0 0 0 1px var(--ok); }
+.mob { display:none; }
+#noise .nz { display:grid; grid-template-columns:minmax(300px, 1.2fr) minmax(140px, 2fr) repeat(3, 76px) 90px; gap:4px 14px; align-items:center; padding:9px 16px; }
+#noise .nz + .nz { border-top:1px solid var(--line); }
+#noise .nz.head { font-size:12px; font-weight:640; color:var(--dim); padding-top:10px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+#noise .nz.head + .nz { border-top:0; }
+#noise .nz code { font-size:12.5px; font-weight:560; min-width:0; }
+#noise .nz .n { text-align:right; font-variant-numeric:tabular-nums; font-size:13.5px; }
+#noise .nz .n.zero { color:var(--warn-ink); font-weight:650; }
+#noise .nz .act { text-align:right; }
+#noise .key { padding:10px 16px; border-top:1px solid var(--line); }
+#noise .nbar, #noise .key i { height:8px; border-radius:4px; background:var(--sunk); box-shadow:inset 0 0 0 1px var(--line); }
+#noise .nbar i.a, #noise .key i.a { background:var(--ok); }
+#noise .nbar i.p, #noise .key i.p { background:var(--warn); }
+#noise .nbar i.f, #noise .key i.f { background:color-mix(in srgb, var(--ink) 45%, transparent); }
+#noise .key i { width:16px; box-shadow:none; }
+#noise details > summary { list-style:none; cursor:pointer; padding:10px 16px; border-top:1px solid var(--line); color:var(--ink-2); font-weight:600; font-size:13px; min-height:var(--tap); display:flex; align-items:center; }
+#noise details > summary::-webkit-details-marker { display:none; }
+#noise details[open] > summary { border-bottom:1px solid var(--line); }
+#load td { font-size:13.5px; }
+#load .who { display:inline-flex; align-items:center; gap:8px; font-weight:600; }
+#load-sec .pad { padding:14px 16px; line-height:1.5; }
+#load-sec .pad b { font-weight:650; }
+@media (max-width:1040px) { #lanes .wide { display:none; } }
+@media (max-width:860px) {
+  .ph .seg { width:100%; } .ph .seg > a { flex:1; justify-content:center; min-height:44px; min-width:44px; }
+  .sh .btn.sm { min-height:44px; }
+  #lanes, #lanes tbody { display:block; }
+  #lanes colgroup, #lanes thead tr.cols { display:none; }
+  #lanes thead { display:block; }
+  #lanes thead tr.chart { display:block; padding:8px 14px 10px; border-bottom:1px solid var(--line-2); }
+  #lanes thead tr.chart th { display:none; padding:0; border:0; }
+  #lanes thead tr.chart th.plot { display:block; }
+  #lanes tr.lane { display:grid; grid-template-columns:minmax(0, 1fr); gap:8px; padding:14px 14px 12px; border-top:1px solid var(--line); }
+  #lanes tbody tr.lane:first-child { border-top:0; }
+  #lanes tr.lane td { display:block; padding:0 !important; border:0; }
+  #lanes td.n { display:none !important; }
+  .svc a { min-height:44px; font-size:13.5px; }
+  .svc small { margin-left:15px; font-size:12.5px; }
+  .topbar .brand { min-height:44px; }
+  .tk .obrow { display:none; }
+  .tk .strip { height:20px; gap:1px; }
+  .lax { display:flex; justify-content:space-between; margin-top:4px; font-size:12px; color:var(--dim); }
+  .mob { display:flex; flex-direction:column; grid-column:1 / -1; }
+  .mob a { display:flex; align-items:center; gap:8px; min-height:44px; border-top:1px dashed var(--line); font-size:13px; color:var(--ink); }
+  .mob a .id { font:600 12.5px var(--mono); }
+  .mob a .w { margin-left:auto; color:var(--dim); white-space:nowrap; }
+  .mob a .t { min-width:0; }
+  #noise .nz { grid-template-columns:minmax(0, 1fr) auto; padding:12px 14px; }
+  #noise .nz.head { display:none; }
+  #noise .nz .meter { grid-column:1 / -1; grid-row:2; }
+  #noise .nz .n { display:none; }
+  #noise .nz .m { display:block; grid-column:1 / -1; grid-row:3; color:var(--dim); font-size:12.5px; }
+  #noise .nz .act { grid-column:2; grid-row:1; }
+  #noise .nz .act .btn { min-height:44px; }
+  #load th:nth-child(4), #load td:nth-child(4), #load th:nth-child(5), #load td:nth-child(5) { display:none; }
+}
+@media (min-width:861px) { #noise .nz .m, #lanes .u, .lax { display:none; } }
+{{end}}
+{{define "nz"}}<div class="nz">
+  <code>{{breakable .N.Alert}}</code>
+  <div class="meter">{{template "noisebar" .}}</div>
+  <span class="n">{{.N.Firings}}</span><span class="n">{{.N.Incidents}}</span><span class="n{{if and .N.Incidents (not .N.Acted)}} zero{{end}}">{{.N.Acted}}</span>
+  <span class="m">{{.N.Firings}} firing{{if ne .N.Firings 1}}s{{end}}, {{.N.Incidents}} incident{{if ne .N.Incidents 1}}s{{end}}, {{.N.Acted}} acted on</span>
+  <span class="act">{{if .Admin}}<a class="btn sm" href="/settings/routing?route={{print "alertname=" .N.Alert " => notice"}}" data-event="noise.quiet">Quiet it</a>{{end}}</span>
+</div>{{end}}
+{{define "content"}}
+<main class="page wide">
+  <div class="ph">
+    <div><h1>Services and noise</h1>
+      <p class="lede" id="say" data-live>{{with .Top}}<b class="mono">{{breakable .Alert}}</b> <span class="p">is the loudest alert:</span> <span class="p"><b>{{.Firings}}</b> firing{{if ne .Firings 1}}s{{end}} in {{$.Window}},</span> <span class="p{{if not .Acted}} hot{{end}}">{{if .Acted}}{{.Acted}} acted on.{{else}}none acted on.{{end}}</span>{{else}}<span class="p">No alert fired in {{.Window}}.</span>{{end}}
+        {{with .Report.Total}}<span class="p">{{.Incidents}} incident{{if ne .Incidents 1}}s{{end}}{{if .Open}}, {{.Open}} still open{{end}},</span> <span class="p">{{if .Pages}}{{.Pages}} page{{if ne .Pages 1}}s{{end}}{{if .NightPages}} ({{.NightPages}} at night){{end}}{{if not $.Paged}}, none reached a person{{end}}{{else}}no pages{{end}}.</span>{{end}}</p></div>
+    <div class="tools"><nav class="seg" aria-label="Window">{{range $w := .Windows}}<a href="/components?window={{$w}}" class="{{if eq $w $.Window}}on{{end}}" data-event="components.window" data-cmd="Window: {{$w}}" data-group="View">{{$w}}</a>{{end}}</nav></div>
+  </div>
+
+  <section class="sec" id="noise" data-live>
+    <div class="sh"><h2>Noise</h2><span class="aside">every alert that fired in {{.Window}}, loudest first</span>{{if .Admin}}<span class="tools"><a class="btn sm" href="/settings/routing">Routes</a></span>{{end}}</div>
+    <div class="panel">
+    {{if .Noise}}
+      <div class="nz head"><span>Alert</span><span></span><span class="n">Firings</span><span class="n">Incidents</span><span class="n">Acted on</span><span></span></div>
+      {{range $n, $z := .Noise}}{{if lt $n 15}}{{template "nz" (nzA $z $.Loudest $.Admin)}}{{end}}{{end}}
+      {{if gt (len .Noise) 15}}<details data-hold><summary>{{sub (len .Noise) 15}} quieter alerts</summary>{{range $n, $z := .Noise}}{{if ge $n 15}}{{template "nz" (nzA $z $.Loudest $.Admin)}}{{end}}{{end}}</details>{{end}}
+      <div class="key">{{if .AnyActed}}<span><i class="a"></i>acted on</span>{{end}}<span><i class="p"></i>incidents nobody acted on</span><span><i class="f"></i>firings that made no incident</span></div>
+    {{else}}<div class="empty"><b>Quiet</b>No alert fired in {{.Window}}.</div>{{end}}
+    </div>
+    <p class="hint" style="margin-top:8px">An alert that fires and nobody acts on is a rule to tune. Quiet it makes a route that turns it into a notice, which pages nobody.</p>
+  </section>
+
+  <section class="sec" id="lanes-sec" data-live>
+    <div class="sh"><h2>Services, worst first</h2><span class="aside">one clock for every service: {{.Clock.N}} cells of {{.Clock.Unit}}, the newest at the right</span></div>
+    <div class="panel">
+    {{if .Lanes}}
+      <table class="tbl" id="lanes">
+        <colgroup><col class="c-svc"><col><col class="c-inc"><col class="c-num wide"><col class="c-num wide"><col class="c-pg wide"></colgroup>
+        <thead>
+          <tr class="cols"><th data-sort>Service</th><th>Worst severity that fired in each cell, UTC</th><th data-sort class="n">Incidents</th><th data-sort class="n wide" title="Mean time to acknowledge">MTTA</th><th data-sort class="n wide" title="Mean time to restore">MTTR</th><th data-sort class="n wide">Pages</th></tr>
+          <tr class="chart">
+            <th class="lbl">Incidents opened in each cell; the most in one is {{.Tallest}}</th>
+            <th class="plot"><div class="days" role="img" aria-label="Incidents opened in each cell, by severity">{{range .Bars}}<div class="d" title="{{.Day.Format "Mon Jan 2 15:04"}} UTC: {{.Total}} opened{{if .Critical}}, {{.Critical}} Critical{{end}}{{if .Warning}}, {{.Warning}} Warning{{end}}{{if .Info}}, {{.Info}} Info{{end}}" style="height:{{printf "%.1f" (percent .Total $.Tallest)}}%">{{if .Info}}<i class="info" style="flex:{{.Info}}"></i>{{end}}{{if .Warning}}<i class="warning" style="flex:{{.Warning}}"></i>{{end}}{{if .Critical}}<i class="critical" style="flex:{{.Critical}}"></i>{{end}}</div>{{end}}</div>
+              <div class="cticks" aria-hidden="true">{{range .Ticks}}<span style="left:{{printf "%.2f" .Left}}%">{{.Label}}</span>{{end}}</div></th>
+            <th></th><th class="wide"></th><th class="wide"></th><th class="wide"></th>
+          </tr>
+        </thead>
+        <tbody>
+        {{range .Lanes}}
+          <tr class="lane">
+            <td class="svc" data-v="{{.Service}}"><a href="/history?service={{.Service}}" title="Every incident on {{.Service}}"><i class="{{.Worst}}"></i>{{.Service}}</a>
+              <small>{{if .Open}}<span class="hot">{{len .Open}} open</span>, {{end}}{{.Firings}} firing{{if ne .Firings 1}}s{{end}}{{if .HasRow}}<span class="u">, {{.Row.Incidents}} incident{{if ne .Row.Incidents 1}}s{{end}}</span>{{end}}</small></td>
+            <td class="tk">
+              <div class="strip" role="img" aria-label="{{.Service}}: alerts fired {{.Firings}} times">{{range .Cells}}<i class="{{.Class}}" title="{{.From.Format "Mon Jan 2 15:04"}} UTC{{if .Count}}: fired {{.Count}} time{{if ne .Count 1}}s{{end}}{{else if .Quiet}}: open, nothing firing{{end}}"></i>{{end}}</div>
+              {{range .Bars}}<a class="obrow" href="/incidents/{{.I.ID}}" title="#{{.I.ID}} {{named .I.Title}}"><i class="ob {{.I.Severity}}{{if .I.Settling}} settling{{end}}{{if .Clipped}} clip{{end}}" style="left:{{printf "%.2f" .Left}}%;width:{{printf "%.2f" .Width}}%"></i><span class="obl" style="{{if .Ahead}}left:{{printf "%.2f" .Left}}%{{else}}right:{{printf "%.2f" .Right}}%{{end}}"><b>#{{.I.ID}}</b> {{if .I.Settling}}settling{{else if .I.Owner}}<span class="av">{{initials .I.Owner}}</span>{{else}}<span class="nobody">nobody</span>{{end}}</span></a>{{end}}
+              <div class="lax" aria-hidden="true"><span>{{($.Clock.Start).Format "Jan 2"}}</span><span>now</span></div>
+            </td>
+            <td class="n inc" data-v="{{if .HasRow}}{{.Row.Incidents}}{{else}}0{{end}}">{{if .HasRow}}{{.Row.Incidents}}{{else}}<span class="dash">0</span>{{end}}</td>
+            <td class="n wide" data-v="{{.MTTAv}}">{{if and .HasRow .Row.MTTASeconds}}{{secs .Row.MTTASeconds}}{{else}}<span class="dash">none</span>{{end}}</td>
+            <td class="n wide" data-v="{{.MTTRv}}">{{if and .HasRow .Row.MTTRSeconds}}{{secs .Row.MTTRSeconds}}{{else}}<span class="dash">none</span>{{end}}</td>
+            <td class="n wide" data-v="{{if .HasRow}}{{.Row.Pages}}{{else}}0{{end}}">{{if and .HasRow .Row.Pages}}{{.Row.Pages}}{{else}}<span class="dash">0</span>{{end}}</td>
+            {{if .Open}}<td class="mob">{{range .Open}}<a href="/incidents/{{.ID}}"><span class="sev {{.Severity}}"></span><span class="id">#{{.ID}}</span><span class="t">{{.Phase}}{{if .Owner}}, {{who .Owner}}{{else}}, <span class="nobody">nobody</span>{{end}}</span><span class="w"><time data-since="{{iso .OpenedAt}}">{{dur (.Age $.Report.Until)}}</time></span></a>{{end}}</td>{{end}}
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      <div class="legend"><span><i style="background:var(--crit)"></i>Critical fired</span><span><i style="background:var(--warn)"></i>Warning fired</span><span><i style="background:var(--info)"></i>Info fired</span><span><i class="q"></i>open, nothing firing</span><span><i class="ob2"></i>open incident, to now</span><span><i class="st2"></i>settling, closes itself</span><span>Each cell is {{.Clock.Unit}}, UTC.</span></div>
+    {{else}}
+      <div class="empty"><b>No incidents in {{.Window}}</b>Nothing has failed, or nothing has reached the desk yet.</div>
+    {{end}}
+    </div>
+  </section>
+
+
+    <section class="sec" id="load-sec" data-live>
+      <div class="sh"><h2>On-call load</h2><span class="aside">who the pages reached in {{.Window}}</span></div>
+      <div class="panel">
+      {{if .Paged}}
+        <table class="tbl" id="load">
+          <thead><tr><th data-sort>Person</th><th data-sort class="n">Pages</th><th data-sort class="n">At night</th><th data-sort class="n">Acknowledged</th><th data-sort class="n">Hours on call</th></tr></thead>
+          <tbody>{{range .People}}<tr><td data-v="{{who .Person}}"><span class="who"><span class="av">{{initials .Person}}</span>{{who .Person}}</span></td><td class="n">{{.Pages}}</td><td class="n">{{.NightPages}}</td><td class="n">{{.Acknowledged}}</td><td class="n" data-v="{{printf "%.0f" .HoursOnCall}}">{{printf "%.0f" .HoursOnCall}}</td></tr>{{end}}</tbody>
+        </table>
+      {{else}}
+        <div class="pad"><b>{{with .Report.Total.Pages}}{{.}} page{{if ne . 1}}s{{end}} started in {{$.Window}}, and none reached a person.{{else}}Nobody was paged in {{.Window}}.{{end}}</b> <span class="dim">{{if .People}}{{range $k, $p := .People}}{{if $k}}, {{end}}{{who $p.Person}}{{end}} {{if eq (len .People) 1}}was{{else}}were{{end}} on call. Pages show here once a chain pages someone.{{else}}Pages and shifts show here once a chain pages someone.{{end}}</span></div>
+      {{end}}
+      </div>
+    </section>
+</main>
+{{end}}
