@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1](https://github.com/orchard-suite/dispatch/compare/v1.0.0...v1.0.1) (2026-11-23)
+
+### Bug Fixes
+
+* **dispatch:** name muster for redgreen ([ec7d9ab](https://github.com/orchard-suite/dispatch/commit/ec7d9ab1ec666c51a92924ffa825a8acf2f1eb2c))
+
 ## [1.0.0](https://github.com/orchard-suite/dispatch/compare/v0.0.41...v1.0.0) (2026-11-23)
 
 ### ⚠ BREAKING CHANGES
