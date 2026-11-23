@@ -61,7 +61,7 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
   client. The blueprint it offers matches
   `deploy/orrery-catalog/model/incidents.yaml`.
 - `orrery.yaml` at the root is what this repository builds, for the estate
-  that reads it: redgreen reads it from the repository and writes the
+  that reads it: Muster reads it from the repository and writes the
   service and its APIs into Orrery. The app never describes itself; its
   Orrery source token pushes incidents only. A test in `internal/server`
   fails while a file it names (`logo.svg`, a `spec`) is missing.

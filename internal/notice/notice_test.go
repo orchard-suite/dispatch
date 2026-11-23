@@ -50,7 +50,7 @@ func TestTakes(t *testing.T) {
 		{"another topic", Subscription{Topics: []string{"incident.*"}}, false},
 		{"paused", Subscription{Topics: []string{"*"}, Paused: true}, false},
 		{"its producer", Subscription{Topics: []string{"*"}, Producers: []string{"orrery"}}, true},
-		{"another producer", Subscription{Topics: []string{"*"}, Producers: []string{"redgreen"}}, false},
+		{"another producer", Subscription{Topics: []string{"*"}, Producers: []string{"muster"}}, false},
 		{"the entity itself", Subscription{Topics: []string{"*"}, Anchor: "azure_app_service:beacon-api-prod"}, true},
 		{"a program it reaches", Subscription{Topics: []string{"*"}, Anchor: "program:4242"}, true},
 		{"a program it does not reach", Subscription{Topics: []string{"*"}, Anchor: "program:1"}, false},

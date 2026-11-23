@@ -615,7 +615,7 @@ platformkit's `orrery` client, one per token.
 The app does not describe itself to the hub. `orrery.yaml` at the
 repository root says what this repository builds: the service
 `github/orchard-suite/dispatch/cmd/dispatch`, the pillars it covers, the APIs it
-provides and calls, and its logo, `logo.svg`. redgreen, the forge reader,
+provides and calls, and its logo, `logo.svg`. Muster, the forge reader,
 reads it from the repository and writes them into the catalog.
 
 ## Annals

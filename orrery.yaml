@@ -1,4 +1,4 @@
-# What this repository builds, for the estate that reads it. redgreen, the
+# What this repository builds, for the estate that reads it. Muster, the
 # forge reader, reads this file from the repository and writes the service,
 # the APIs it provides, and the APIs it calls into the Orrery catalog; the
 # app itself writes none of it. `fields` and `relations` place it in the
