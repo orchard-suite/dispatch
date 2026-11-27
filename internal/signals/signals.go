@@ -45,7 +45,12 @@ var ErrNoData = errors.New("no data")
 // value for.
 var ErrMissingParam = errors.New("the subject has no value for a parameter")
 
-var paramRe = regexp.MustCompile(`\{([^{}\s]+)\}`)
+// paramRe is a parameter: {window}, a field or a part of one ({name},
+// {labels.app}), a relation's target ({namespace.title}), or what points
+// at the subject ({<-k8s_namespace:workload.title}). A brace a store's
+// own language uses, such as PromQL's {code=~"5.."} or a regex's {1,5},
+// is not one.
+var paramRe = regexp.MustCompile(`\{((?:<-[a-z0-9_]+:[a-z0-9_]+\.(?:key|title))|(?:[a-z][a-zA-Z0-9_./-]*))\}`)
 
 // Render fills a query's parameters, each written as the store's language
 // quotes a value (escape), and {window} as the window in whole seconds,

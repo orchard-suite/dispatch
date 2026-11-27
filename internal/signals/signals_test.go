@@ -31,6 +31,16 @@ func TestRenderFillsParamsAndTheWindow(t *testing.T) {
 	}
 }
 
+func TestRenderLeavesTheStoresOwnBraces(t *testing.T) {
+	q := Query{Text: `sum(increase(r{ns="{<-k8s_namespace:workload.title}", code=~"5..", pod=~"{name}-([a-z0-9]{6,10}-)?[a-z0-9]{1,5}"}[{window}])) / count(up{job="{labels.app.kubernetes.io/name}"})`,
+		Params: map[string]string{"<-k8s_namespace:workload.title": "shop", "name": "shop", "labels.app.kubernetes.io/name": "shop"}, From: from, To: to}
+	got, err := Render(q, promString)
+	want := `sum(increase(r{ns="shop", code=~"5..", pod=~"shop-([a-z0-9]{6,10}-)?[a-z0-9]{1,5}"}[1800s])) / count(up{job="shop"})`
+	if err != nil || got != want {
+		t.Errorf("%s %v", got, err)
+	}
+}
+
 func TestJudgeNeverCallsBlindClean(t *testing.T) {
 	clean, harm, blind := Look{Verdict: change.VerdictClean}, Look{Verdict: change.VerdictHarm}, Look{Verdict: change.VerdictBlind}
 	for name, tc := range map[string]struct {
