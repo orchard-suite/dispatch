@@ -17,6 +17,7 @@ import (
 
 	"github.com/orchard-suite/dispatch/internal/incident"
 	"github.com/orchard-suite/dispatch/internal/notice"
+	"github.com/orchard-suite/dispatch/internal/signals"
 )
 
 // MaxBody is the most of a document the desk reads.
@@ -65,6 +66,9 @@ type Changes struct {
 	// it changes. A base kind keeps its family and unit; only its watch
 	// may differ.
 	Kinds []Kind `yaml:"kinds,omitempty"`
+	// Watch is where the watch reads signals, and which query reads which
+	// signal for which blueprint.
+	Watch *signals.Settings `yaml:"watch,omitempty"`
 }
 
 // Kind is an effect kind with its watch written as a duration, such as 2h.

@@ -36,6 +36,9 @@ type Metrics struct {
 	assist        metric.Int64Counter
 	changes       metric.Int64Counter
 	changeEvents  metric.Int64Counter
+	watches       metric.Int64Counter
+	sights        metric.Int64Counter
+	observed      metric.Int64Counter
 	tta           metric.Float64Histogram
 	ttr           metric.Float64Histogram
 }
@@ -86,6 +89,15 @@ func New(stats func() Stats) (*Metrics, error) {
 		return nil, err
 	}
 	if mt.changeEvents, err = m.Int64Counter("dispatch.change_events", metric.WithDescription("Change events taken in, by source (the sender) and outcome: kept, repeat, or refused.")); err != nil {
+		return nil, err
+	}
+	if mt.watches, err = m.Int64Counter("dispatch.watches", metric.WithDescription("Watches on changes, by outcome: started, skipped, observed, missed, or unwatched.")); err != nil {
+		return nil, err
+	}
+	if mt.sights, err = m.Int64Counter("dispatch.watch.sights", metric.WithDescription("What the watch saw of one kind on one subject, by outcome: clean, harm, or blind.")); err != nil {
+		return nil, err
+	}
+	if mt.observed, err = m.Int64Counter("dispatch.watch.sends", metric.WithDescription("Observations handed on, by source (the target: annals or orrery) and outcome: sent or retry.")); err != nil {
 		return nil, err
 	}
 	if mt.pages, err = m.Int64Counter("dispatch.pages", metric.WithDescription("Escalation chain pages, by outcome: started, escalated, acknowledged, or unanswered.")); err != nil {
@@ -161,6 +173,18 @@ func (m *Metrics) Change(ctx context.Context, source, outcome string) {
 
 func (m *Metrics) ChangeEvent(ctx context.Context, source, outcome string) {
 	m.changeEvents.Add(ctx, 1, metric.WithAttributes(attribute.String("source", source), attribute.String("outcome", outcome)))
+}
+
+func (m *Metrics) Watch(ctx context.Context, outcome string) {
+	m.watches.Add(ctx, 1, metric.WithAttributes(attribute.String("outcome", outcome)))
+}
+
+func (m *Metrics) Sight(ctx context.Context, outcome string) {
+	m.sights.Add(ctx, 1, metric.WithAttributes(attribute.String("outcome", outcome)))
+}
+
+func (m *Metrics) ObservedSend(ctx context.Context, source, outcome string) {
+	m.observed.Add(ctx, 1, metric.WithAttributes(attribute.String("source", source), attribute.String("outcome", outcome)))
 }
 
 func (m *Metrics) Delivery(ctx context.Context, outcome string) {

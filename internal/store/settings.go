@@ -10,6 +10,7 @@ import (
 	"github.com/orchard-suite/platformkit/v3/change"
 
 	"github.com/orchard-suite/dispatch/internal/incident"
+	"github.com/orchard-suite/dispatch/internal/signals"
 )
 
 // Settings is what the desk's Settings page changes. The zero value is
@@ -54,6 +55,8 @@ type Settings struct {
 	// Kinds are the estate's effect kinds beside the suite's base ones,
 	// and the base ones whose watch the estate changed.
 	Kinds []change.Kind `json:"kinds,omitempty"`
+	// Watch is the watch's stores and queries.
+	Watch signals.Settings `json:"watch,omitempty"`
 }
 
 // Night says whether t falls between 22:00 and 07:00 in the desk's zone.

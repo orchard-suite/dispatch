@@ -7,9 +7,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/orchard-suite/platformkit/v3/change"
+
 	"github.com/orchard-suite/dispatch/internal/config"
 	"github.com/orchard-suite/dispatch/internal/incident"
 	"github.com/orchard-suite/dispatch/internal/notice"
+	"github.com/orchard-suite/dispatch/internal/signals"
 	"github.com/orchard-suite/dispatch/internal/store"
 )
 
@@ -306,14 +309,21 @@ func (d *Desk) checkSettings(ctx context.Context, s config.Settings) (*settingsC
 	}
 	st.PublicComponents, st.UpdateTemplates, st.IssueRepos = s.Public, s.Templates, s.IssueRepos
 	st.Zone, st.PersonPages, st.ServicePages = s.Zone, s.PersonPages, s.ServicePages
-	st.Leaning, st.Kinds = incident.Leaning{}, nil
+	st.Leaning, st.Kinds, st.Watch = incident.Leaning{}, nil, signals.Settings{}
 	if c := s.Changes; c != nil {
 		st.Leaning = incident.Leaning{Relations: c.LeansOn, Depth: c.Depth}
 		if err := st.Leaning.Validate(); err != nil {
 			return nil, fmt.Errorf("%w: changes: %v", notice.ErrInvalid, err)
 		}
-		if st.Kinds, _, err = c.ToKinds(); err != nil {
+		var kinds *change.Kinds
+		if st.Kinds, kinds, err = c.ToKinds(); err != nil {
 			return nil, fmt.Errorf("changes: %w", err)
+		}
+		if c.Watch != nil {
+			if err := c.Watch.Validate(kinds); err != nil {
+				return nil, fmt.Errorf("%w: changes: watch: %v", notice.ErrInvalid, err)
+			}
+			st.Watch = *c.Watch
 		}
 	}
 	return &settingsChange{apply: st}, nil
@@ -330,8 +340,12 @@ func (d *Desk) Export(ctx context.Context) (config.Document, error) {
 		QuietResolveHours: int(st.QuietResolve / time.Hour),
 		Rules:             incident.FormatRules(st.Rules), Routes: incident.FormatRoutes(st.Routes), StatusTitle: st.StatusTitle, Public: st.PublicComponents,
 		Templates: st.UpdateTemplates, IssueRepos: st.IssueRepos, Zone: st.Zone, PersonPages: st.PersonPages, ServicePages: st.ServicePages}
-	if len(st.Leaning.Relations) > 0 || st.Leaning.Depth > 0 || len(st.Kinds) > 0 {
+	if len(st.Leaning.Relations) > 0 || st.Leaning.Depth > 0 || len(st.Kinds) > 0 || len(st.Watch.Stores) > 0 || len(st.Watch.Queries) > 0 {
 		doc.Settings.Changes = &config.Changes{LeansOn: st.Leaning.Relations, Depth: st.Leaning.Depth, Kinds: config.FromKinds(st.Kinds)}
+		if len(st.Watch.Stores) > 0 || len(st.Watch.Queries) > 0 {
+			w := st.Watch
+			doc.Settings.Changes.Watch = &w
+		}
 	}
 	people, err := d.Store.People(ctx)
 	if err != nil {

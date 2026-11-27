@@ -323,6 +323,37 @@ CREATE TABLE change_events (
 );
 CREATE INDEX change_events_of ON change_events(of_sender, of_key);
 CREATE INDEX change_events_change ON change_events(change_id, at);`,
+	// 12: a change being watched, from when it ended until its window
+	// closes, and what the watch saw; each observation saved to be handed
+	// on to Annals and to the catalog until each takes it; and an end whose
+	// statement never came, once it has been told.
+	`CREATE TABLE watches (
+  change_id INTEGER PRIMARY KEY REFERENCES changes(id) ON DELETE CASCADE,
+  state TEXT NOT NULL,
+  from_at TEXT NOT NULL,
+  due_at TEXT NOT NULL,
+  verdict TEXT NOT NULL DEFAULT '',
+  sights TEXT NOT NULL DEFAULT '[]',
+  incidents TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  done_at TEXT
+);
+CREATE INDEX watches_due ON watches(state, due_at);
+CREATE TABLE change_sends (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  change_id INTEGER NOT NULL REFERENCES changes(id) ON DELETE CASCADE,
+  target TEXT NOT NULL,
+  body TEXT NOT NULL,
+  state TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_at TEXT NOT NULL,
+  last_error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  sent_at TEXT,
+  UNIQUE (change_id, target)
+);
+CREATE INDEX change_sends_due ON change_sends(state, next_at);
+ALTER TABLE change_events ADD COLUMN told INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // upgrade runs the upgrades this database has not had, each in its own

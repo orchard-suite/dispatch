@@ -22,6 +22,7 @@ import (
 	"github.com/orchard-suite/dispatch/internal/orrery"
 	"github.com/orchard-suite/dispatch/internal/outbox"
 	"github.com/orchard-suite/dispatch/internal/outcomes"
+	"github.com/orchard-suite/dispatch/internal/signals"
 	"github.com/orchard-suite/dispatch/internal/store"
 )
 
@@ -56,6 +57,11 @@ type Desk struct {
 	// door is the hub's tool door, which lends investigations their data
 	// tools; nil lends none.
 	door *orrery.Door
+	// signals opens the watch's signal stores; nil reads none, so every
+	// kind is blind.
+	signals *signals.Opener
+	// version is the desk's own, which its observations carry.
+	version string
 	// Now is replaced in tests.
 	Now func() time.Time
 }

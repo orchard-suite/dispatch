@@ -190,6 +190,17 @@ func (s *Store) changes(ctx context.Context, q querier, query string, args ...an
 		if out[i].Events, err = s.changeEventNames(ctx, q, out[i].ID); err != nil {
 			return nil, err
 		}
+		w, err := s.ChangeWatch(ctx, q, out[i].ID)
+		switch {
+		case errors.Is(err, ErrNotFound):
+		case err != nil:
+			return nil, err
+		default:
+			if w.Sends, err = s.Sends(ctx, q, out[i].ID); err != nil {
+				return nil, err
+			}
+			out[i].Watch = &w
+		}
 	}
 	return out, nil
 }

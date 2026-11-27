@@ -35,6 +35,7 @@ import (
 	"github.com/orchard-suite/dispatch/internal/outbox"
 	"github.com/orchard-suite/dispatch/internal/seal"
 	"github.com/orchard-suite/dispatch/internal/server"
+	"github.com/orchard-suite/dispatch/internal/signals"
 	"github.com/orchard-suite/dispatch/internal/sms"
 	"github.com/orchard-suite/dispatch/internal/store"
 	"github.com/orchard-suite/dispatch/internal/teams"
@@ -142,6 +143,20 @@ func run(log *slog.Logger) error {
 	}
 	d = desk.New(st, m, hooks, catalog, decisions, box, log, cfg.PublicURL)
 	d.UseStatusURL(os.Getenv("STATUS_URL"))
+	d.UseVersion(version)
+	// The watch reads Azure Monitor as the pod's workload identity, when it
+	// has one; without it every Azure Monitor store is blind.
+	var watchTokens signals.Tokens
+	if appID := env("WATCH_APP_ID", os.Getenv("AZURE_CLIENT_ID")); appID != "" {
+		signer, err := entra.New(entra.Config{Name: "the watch", AppID: appID, TenantID: env("WATCH_TENANT_ID", os.Getenv("AZURE_TENANT_ID")),
+			TokenFile: env("WATCH_TOKEN_FILE", os.Getenv("AZURE_FEDERATED_TOKEN_FILE")), Scope: signals.AzureMonitorScope})
+		if err != nil {
+			log.Warn("watch reads no Azure Monitor", "reason", err.Error())
+		} else {
+			watchTokens = signer
+		}
+	}
+	d.UseSignals(signals.NewOpener(watchTokens))
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		d.UseIssues(github.New(token))
 	}
@@ -247,7 +262,7 @@ func run(log *slog.Logger) error {
 		}()
 	}
 	log.Info("dispatch started", "public_url", cfg.PublicURL, "status", os.Getenv("STATUS_ADDR") != "",
-		"shared_secret", cfg.AlertmanagerToken != "", "notify", hooks.Enabled(), "orrery_resolves", catalog.Resolves(), "orrery_pushes", catalog.Pushes(), "annals", decisions.Enabled(), "channels", sealer.Keeps(), "teams_bot", botOn, "mail", mailKind, "sms", texts != nil, "discord", dbot != nil, "azure_monitor", azureMonitorOn, "assistant", d.HasAssistant())
+		"shared_secret", cfg.AlertmanagerToken != "", "notify", hooks.Enabled(), "orrery_resolves", catalog.Resolves(), "orrery_pushes", catalog.Pushes(), "annals", decisions.Enabled(), "channels", sealer.Keeps(), "teams_bot", botOn, "mail", mailKind, "sms", texts != nil, "discord", dbot != nil, "azure_monitor", azureMonitorOn, "assistant", d.HasAssistant(), "watch_azure_monitor", watchTokens != nil)
 
 	select {
 	case <-ctx.Done():

@@ -3,7 +3,9 @@
 // mitigated, resolved, or reopened which incident, and every routing
 // decision about a notice: an event taken or dropped, a page started,
 // moved on, acknowledged, or left unanswered, a send given up, and every
-// change an admin makes to how notices are routed.
+// change an admin makes to how notices are routed; and what the watch saw
+// of each change, which the desk keeps and hands on here until it is
+// taken.
 package annals
 
 import (
@@ -17,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	kit "github.com/orchard-suite/platformkit/v3/annals"
+	"github.com/orchard-suite/platformkit/v3/change"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/orchard-suite/dispatch/internal/incident"
@@ -215,4 +218,59 @@ func clip(s string, n int) string {
 		cut--
 	}
 	return s[:cut]
+}
+
+// Observed is Annals's record of what the watch saw of one change: about
+// the change its stated event names, caused by that event, with each
+// sight as an effect and its verdict, and each joined incident as an item.
+func Observed(o *change.Observed) kit.Event {
+	of := *o.Of
+	ev := kit.Event{
+		At:       o.At.UTC(),
+		EventKey: clip(o.Key, kit.MaxShort),
+		Actor:    kit.Actor{Kind: string(incident.ActorSystem), ID: Source},
+		Action: kit.Action{
+			Verb:    change.EventObserved,
+			Target:  kit.Target{System: of.Sender, Kind: "change", ID: clip(of.Key, kit.MaxShort)},
+			Outcome: "ok",
+		},
+		Change: &kit.Change{AfterHash: o.Digest},
+		Cause:  clip(of.Key, kit.MaxShort),
+		Labels: map[string]string{"watch": clip(o.Watch.Name+" "+o.Watch.Version, kit.MaxLabelLen)},
+	}
+	if of.Sender != Source {
+		ev.CauseSource = of.Sender
+	}
+	counts := map[string]int{}
+	for _, s := range o.Sights {
+		ev.Effects = append(ev.Effects, kit.Effect{Kind: s.Kind, Subject: kit.Subject{Blueprint: s.Subject.Blueprint, Key: s.Subject.Key}, Path: s.Path, Verdict: s.Verdict})
+		counts[s.Verdict]++
+	}
+	for _, v := range kit.Verdicts {
+		ev.Labels[v] = fmt.Sprint(counts[v])
+	}
+	for _, inc := range o.Incidents {
+		ev.Items = append(ev.Items, kit.Item{System: inc.System, Kind: "incident", ID: clip(inc.ID, kit.MaxShort)})
+	}
+	return ev
+}
+
+// PostNow posts one event and answers how it went, for a caller that
+// keeps the event and tries again until Annals takes it.
+func (p *Poster) PostNow(ctx context.Context, ev kit.Event) error {
+	if !p.Enabled() {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, postFor)
+	defer cancel()
+	err := p.client.Post(ctx, ev)
+	switch {
+	case err == nil:
+		p.outcome(ctx, "posted")
+	case kit.Reason(err) != "":
+		p.outcome(ctx, "refused")
+	default:
+		p.outcome(ctx, "failed")
+	}
+	return err
 }

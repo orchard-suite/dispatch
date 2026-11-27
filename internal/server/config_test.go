@@ -148,3 +148,46 @@ func TestConfigCarriesHowChangesAreRead(t *testing.T) {
 		t.Errorf("reapply %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestConfigCarriesTheWatchAndChecksItWhole(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	put := func(body string) *httptest.ResponseRecorder {
+		return h.do(h.api, bearer(httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(body)), shared))
+	}
+	doc := `settings:
+  grouping_minutes: 15
+  changes:
+    watch:
+      stores:
+        prom: {kind: prometheus, url: "http://prometheus.example.org:9090"}
+      queries:
+        - blueprint: k8s_workload
+          signal: restarts
+          kinds: [stops]
+          store: prom
+          query: 'sum(increase(restarts{namespace="{namespace.title}"}[{window}]))'
+          above: 0
+`
+	if rec := put(doc); rec.Code != 200 {
+		t.Fatalf("apply %d %s", rec.Code, rec.Body.String())
+	}
+	if st, _ := h.desk.Store.Settings(ctx); len(st.Watch.Queries) != 1 || st.Watch.Stores["prom"].URL != "http://prometheus.example.org:9090" {
+		t.Fatalf("settings %+v", st.Watch)
+	}
+	bad := strings.Replace(doc, "store: prom", "store: loki", 1)
+	if rec := put(bad); rec.Code != 400 || !strings.Contains(rec.Body.String(), "no store") {
+		t.Errorf("a query on a store that is not there: %d %s", rec.Code, rec.Body.String())
+	}
+	if st, _ := h.desk.Store.Settings(ctx); st.Watch.Queries[0].Store != "prom" {
+		t.Error("a refused document changed the watch")
+	}
+	exported := h.do(h.api, bearer(httptest.NewRequest(http.MethodGet, "/v1/config", nil), shared))
+	back, err := config.Read(strings.NewReader(exported.Body.String()))
+	if err != nil || back.Settings.Changes == nil || back.Settings.Changes.Watch == nil || back.Settings.Changes.Watch.Queries[0].Signal != "restarts" {
+		t.Fatalf("export %v %s", err, exported.Body.String())
+	}
+	if rec := put(exported.Body.String()); rec.Code != 200 {
+		t.Errorf("reapply %d %s", rec.Code, rec.Body.String())
+	}
+}

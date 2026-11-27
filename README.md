@@ -546,6 +546,99 @@ what the workload leans on, from two hours before it opened. With the
 catalog out of reach the page lists those to the service and the workload
 alone, and says so in the log.
 
+### The watch
+
+The watch learns what a change did, apart from the change, so watching
+adds no time to it. It starts when a change is both stated and ended, and
+ran: `change.ended` with outcome `ok`, or `failed`, since a failed apply
+may have changed part of what it touched. A change refused before it ran,
+or one that states no effect of a watched kind, starts no watch; the log
+says which.
+
+- **What it watches.** Each subject of each disruption effect, and each
+  thing that leans on it (the catalog's relations, as `leans_on` names
+  them), for the kind's **window**: the kit's base kinds watch `stops` for
+  30 minutes and `cuts` for 2 hours. An estate changes only a kind's
+  watch, in `settings.changes.kinds`.
+- **What it reads.** The estate's own signals: restarts, failed health
+  checks, refused callers, the error rate. It reads them through a port
+  (`internal/signals`) with an adapter for each store: Prometheus and
+  Azure Monitor (Log Analytics, read as the pod's workload identity). Which
+  query reads which signal for which blueprint is in the routing document,
+  never in code:
+
+  ```yaml
+  settings:
+    changes:
+      watch:
+        stores:
+          prom: {kind: prometheus, url: "http://prometheus.example.org:9090"}
+          logs: {kind: azure-monitor, workspace: 00000000-0000-0000-0000-000000000000}
+        queries:
+          - blueprint: k8s_workload
+            signal: restarts
+            kinds: [stops]
+            store: prom
+            query: 'sum(increase(kube_pod_container_status_restarts_total{namespace="{namespace.title}", pod=~"{name}-.*"}[{window}]))'
+            above: 0
+  ```
+
+  A query takes the subject's catalog fields as parameters, each quoted
+  as the store's language quotes a string: `{key}`, `{title}`,
+  `{blueprint}`, any field (`{name}`, and `{labels.app}` for a part of an
+  object field), a relation's first target (`{namespace.key}`,
+  `{namespace.title}`), and the first thing of a kind that points at it
+  (`{<-k8s_namespace:workload.title}`). `{window}` is the kind's window in
+  seconds, such as `1800s`. A Prometheus query is read at the window's
+  end; an Azure Monitor one over the window. A number above `above` is
+  harm.
+- **Seen, clean, or blind.** Each kind on each subject is recorded as
+  `harm`, `clean`, or `blind`, with the signals it read. Blind is never
+  clean: a subject whose blueprint has no query, a store with no adapter,
+  a parameter the subject lacks, a query that found no data, and a store
+  that failed are all blind. One query that saw harm makes the kind harm;
+  otherwise one blind query makes it blind.
+- **Incidents joined.** An incident that opens inside the window on a
+  thing the change touched, felt, or that leans on one is joined to the
+  change.
+- **The verdict is an event.** When the window closes the desk writes
+  `change.observed` (the kit's `Observed`: each sight with the path the
+  change took, and the joined incidents), keeps it with the change, and
+  saves it once for each place it goes: Annals, through platformkit's
+  `annals` client, and the catalog, `POST /v1/ingest/change-events` on
+  `ORRERY_URL` with `{"events":[...]}` and the Orrery source token. A
+  worker hands each one on until it is taken; a refusal is logged and tried
+  again after 30 seconds, 2, 10, and 30 minutes, then every hour. None is
+  dropped, and a send never holds up the watch.
+- **It survives a restart.** A watch is a row from the moment the change
+  ends; the worker closes each one whose window has passed, however long
+  the desk was down. When the catalog cannot say what leans on a subject,
+  the watch waits up to half an hour past its window, then closes without
+  those things and logs it.
+
+`GET /v1/changes` carries each change's `watch`: its state (`watching`,
+then `done`), its window, its verdict, its sights and incidents, and
+whether each place took its observation.
+
+Two alerts come from the watch, raised through the desk's own alert path
+by the producer `dispatch`, as a late heartbeat's alert is:
+
+- `ChangeMissed`: a change routed to no one whose watch saw harm, or a
+  change an incident was joined to.
+- `ChangeUnwatched`: a change that ended with no watch at all. Either its
+  statement never came (ten minutes after its `change.ended`), or every
+  kind on everything it touched was blind.
+
+Both are `warning`, so each is a notice to the channels as
+`alert.firing`, labelled with the `change`, and pages nobody (Only an alert
+that pages opens an incident). The weight is chosen because neither is
+harm happening now: a miss is evidence that a gate rule let harm through,
+and the harm itself pages through its own alerts and incidents; a change
+with no watch is a blind spot. Both are fixed in working hours, in the
+gate's rules or the watch's queries, and the weekly score counts them. An
+estate that wants either to page writes a route that raises it
+(`alertname=ChangeMissed => page`).
+
 ## Routing as a file
 
 The desk's routing can live in git as one YAML document: settings (with
@@ -669,6 +762,10 @@ walking the catalog's relations to see what leans on what (Changes);
 when it is unset, the push token is used for reads as well. The calls go through
 platformkit's `orrery` client, one per token.
 
+The watch posts each `change.observed` to the hub's
+`POST /v1/ingest/change-events` with the push token, so the catalog keeps
+each thing's proof beside it.
+
 The app does not describe itself to the hub. `orrery.yaml` at the
 repository root says what this repository builds: the service
 `github/orchard-suite/dispatch/cmd/dispatch`, the pillars it covers, the APIs it
@@ -712,6 +809,7 @@ Routing decisions, each keyed so a retried post counts once:
 | `person.save`, `group.save`, `chain.save`, `channel.add`, `subscription.add`, `subscription.pause`, `token.issue`, `settings.save`, and each `.remove` | An admin, or a person on **Me**, changed how notices are routed | The person |
 | `person.choose` | A person set, on **Me**, how they hear of one kind of event: labelled with the `kind` and `media` (the media, `list` for list only, or `rules` when they cleared the row) | The person |
 | `kinds.declare` | A product replaced the kinds it declares: labelled with how many `kinds` it now has and how many it `dropped` | The producer (`system`) |
+| `change.observed` | The watch closed on a change: its target is the change (the system and key of its `change.stated` event), its `cause` that event, each sight an effect with its `verdict`, each joined incident an item, labelled with the `watch` and how many sights were `clean`, `harm`, and `blind`. Saved and handed on until taken, unlike the decisions above | `dispatch` (`system`) |
 
 Retries are not decisions and are not posted. `event_key` of an incident
 decision ends in the id of the timeline entry the change wrote, so a
@@ -750,6 +848,9 @@ metrics; the rest are the desk's own, in `internal/metrics`:
 | `dispatch.annals.posts` | outcome: `posted`, `refused`, `failed` |
 | `dispatch.changes` | source (the producer), outcome: `kept`, `repeat` |
 | `dispatch.change_events` | source (the sender), outcome: `kept`, `repeat`, `refused` |
+| `dispatch.watches` | outcome: `started`, `skipped`, `observed`, `missed`, `unwatched` |
+| `dispatch.watch.sights` | outcome: `clean`, `harm`, `blind` |
+| `dispatch.watch.sends` | source (the target: `annals`, `orrery`), outcome: `sent`, `retry` |
 | `process.cpu.time`, `process.memory.usage` | state, kind |
 
 ## Settings
@@ -791,6 +892,7 @@ metrics; the rest are the desk's own, in `internal/metrics`:
 | `ASSIST_TOOLS_TOKEN` | A hub access token whose role holds only `tools.read`. With `ORRERY_URL`, it lends an investigation the hub's read tools (The assistant). A secret. Without it an investigation has no data tools. |
 | `MAIL_SMTP_URL` | Sends email through an SMTP server instead: `smtp://user:pass@host:587` (STARTTLS, required before signing in) or `smtps://user:pass@host:465`. A secret; never logged. Set one transport, not both. |
 | `ANNALS_URL`, `ANNALS_TOKEN` | Annals's API base URL and a token issued for the source `dispatch`. Off unless both are set. |
+| `WATCH_APP_ID`, `WATCH_TENANT_ID`, `WATCH_TOKEN_FILE` | The Entra app or managed identity the watch reads Azure Monitor stores as, its tenant, and its federated token file. Default `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_FEDERATED_TOKEN_FILE`. It needs Log Analytics Reader on what it reads. Without one every Azure Monitor store is blind. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` | OTLP export. |
 | `FARO_URL`, `FARO_API_KEY` | The browser telemetry relay. |
 

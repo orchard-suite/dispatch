@@ -104,14 +104,15 @@ func (d *Desk) CheckHeartbeats(ctx context.Context) {
 	}
 }
 
-// Watch checks the heartbeats, the schedules, and the snoozes every half
-// minute until ctx ends.
+// Watch checks the heartbeats, the changes being watched, the schedules,
+// and the snoozes every half minute until ctx ends.
 func (d *Desk) Watch(ctx context.Context) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	var lastSync time.Time
 	for {
 		d.CheckHeartbeats(ctx)
+		d.WatchChanges(ctx)
 		d.WatchSchedules(ctx)
 		d.Remind(ctx)
 		if time.Since(lastSync) > 10*time.Minute {

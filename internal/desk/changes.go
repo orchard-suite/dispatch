@@ -291,7 +291,7 @@ func (d *Desk) TakeChangeEvents(ctx context.Context, producer string, raws []jso
 				res.Repeats++
 				continue
 			}
-			id, made, err := d.keepChangeEvent(ctx, tx, producer, k, now)
+			id, made, err := d.keepChangeEvent(ctx, tx, producer, k, kinds, now)
 			if err != nil {
 				return err
 			}
@@ -331,7 +331,7 @@ func (d *Desk) refuseEvent(ctx context.Context, producer string, i int, reason, 
 
 // keepChangeEvent writes one event and what it says of its change. It
 // answers the change a change.stated event made, and whether it made one.
-func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string, k keptEvent, now time.Time) (int64, bool, error) {
+func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string, k keptEvent, kinds *change.Kinds, now time.Time) (int64, bool, error) {
 	h := k.head
 	row := store.ChangeEvent{Event: h.Event, Sender: h.Sender, Key: h.Key, Of: h.Of, At: h.At, Body: k.raw}
 	stated, ok := k.ev.(*change.Stated)
@@ -348,7 +348,13 @@ func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string,
 				return 0, false, err
 			}
 		}
-		return 0, false, d.Store.InsertChangeEvent(ctx, tx, row, now)
+		if err := d.Store.InsertChangeEvent(ctx, tx, row, now); err != nil {
+			return 0, false, err
+		}
+		if row.ChangeID != 0 {
+			return 0, false, d.maybeWatch(ctx, tx, row.ChangeID, kinds, now)
+		}
+		return 0, false, nil
 	}
 	s := stated.Statement
 	self := change.EventRef{Sender: h.Sender, Key: h.Key}
@@ -400,7 +406,7 @@ func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string,
 		return 0, false, err
 	}
 	d.log.InfoContext(ctx, "change stated", "change", c.ID, "made", made, "sender", h.Sender, "key", h.Key, "things", len(s.Things), "effects", len(s.Effects), "early_events", len(early))
-	return c.ID, made, nil
+	return c.ID, made, d.maybeWatch(ctx, tx, c.ID, kinds, now)
 }
 
 // applyChangeEvent keeps on its change what an event after the statement

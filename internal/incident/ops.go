@@ -128,6 +128,40 @@ type Change struct {
 	EndedAt *time.Time `json:"ended_at,omitempty"`
 	// Events are the change events kept for it, oldest first.
 	Events []ChangeEvent `json:"events,omitempty"`
+	// Watch is what the watch saw after it ended, or is seeing.
+	Watch *Watch `json:"watch,omitempty"`
+}
+
+// Watch is the watch on one change: from when it ended until its longest
+// window closes, what it saw of each kind on each subject, and the
+// incidents joined to it.
+type Watch struct {
+	// State is WatchWatching until the window closes, then WatchDone.
+	State string     `json:"state"`
+	From  time.Time  `json:"from"`
+	Due   time.Time  `json:"due"`
+	Done  *time.Time `json:"done,omitempty"`
+	// Verdict is the worst it saw: harm, blind, or clean.
+	Verdict   string            `json:"verdict,omitempty"`
+	Sights    []change.Sight    `json:"sights,omitempty"`
+	Incidents []change.Incident `json:"incidents,omitempty"`
+	// Sends are where its change.observed event goes, and whether each
+	// took it.
+	Sends []WatchSend `json:"sends,omitempty"`
+}
+
+// The states of a watch.
+const (
+	WatchWatching = "watching"
+	WatchDone     = "done"
+)
+
+// WatchSend is one target of a change.observed event.
+type WatchSend struct {
+	Target    string `json:"target"`
+	State     string `json:"state"`
+	Attempts  int    `json:"attempts"`
+	LastError string `json:"last_error,omitempty"`
 }
 
 // ChangeEvent is one change event the desk kept, by its name, sender,

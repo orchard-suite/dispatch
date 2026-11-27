@@ -437,3 +437,44 @@ func (c *Client) lean(ctx context.Context, ref change.Ref, l incident.Leaning, l
 	c.log.DebugContext(ctx, "orrery leaning read", "entity", ref.Blueprint+":"+ref.Key, "leaners", leaners, "found", len(out))
 	return out, nil
 }
+
+// Facts is what the catalog holds of one entity for the watch's queries:
+// its fields, the first targets of its relations, and the first entities
+// of each kind that point at it, keyed as "blueprint.relation".
+type Facts struct {
+	Title     string                     `json:"title"`
+	Fields    map[string]json.RawMessage `json:"fields"`
+	Relations map[string][]orrery.Ref    `json:"relations"`
+	Incoming  map[string][]orrery.Ref    `json:"incomingRefs"`
+}
+
+// Facts reads one entity. An entity the hub does not know answers
+// ErrUnknown.
+func (c *Client) Facts(ctx context.Context, ref change.Ref) (Facts, error) {
+	var f Facts
+	if !c.Resolves() {
+		return f, errors.New("orrery: the catalog cannot be read: no ORRERY_URL or token")
+	}
+	ctx, cancel := context.WithTimeout(ctx, lookupFor)
+	defer cancel()
+	err := c.read.Call(ctx, "GET", "/v1/entities/"+url.PathEscape(ref.Blueprint)+"/"+url.PathEscape(ref.Key), nil, &f)
+	var api *orrery.APIError
+	if errors.As(err, &api) && api.Status == http.StatusNotFound {
+		return f, ErrUnknown
+	}
+	return f, err
+}
+
+// ErrUnknown is an entity the catalog does not hold.
+var ErrUnknown = errors.New("orrery: the catalog holds no such entity")
+
+// ChangeEvents posts change events to the hub's ingest, as this desk's
+// source. It fails when the hub refuses them or cannot be reached.
+func (c *Client) ChangeEvents(ctx context.Context, events []json.RawMessage) error {
+	if !c.Pushes() {
+		return errors.New("orrery: no ORRERY_PUSH_TOKEN to send change events with")
+	}
+	ctx, cancel := context.WithTimeout(ctx, pushFor)
+	defer cancel()
+	return c.push.Call(ctx, "POST", "/v1/ingest/change-events", map[string]any{"events": events}, nil)
+}

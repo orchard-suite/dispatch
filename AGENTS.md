@@ -56,6 +56,20 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
   their rows; `internal/changetest` builds change events for tests.
 - Every change route decodes strictly: a field the contract does not name
   is refused, never dropped. A change event's sender is the token's name.
+- `internal/signals` is the watch's port to signal stores: a query with
+  the subject's catalog fields as parameters, its adapters (Prometheus,
+  Azure Monitor) and `Memory` for tests, the watch's settings, and `Judge`.
+  It has no storage. Which query reads which signal for which blueprint is
+  the routing document's (`settings.changes.watch`), never code.
+  `internal/desk/watch.go` starts a watch when a change is stated and
+  ended and ran, closes it when its window passes (`WatchChanges`, driven
+  by `Watch`), joins incidents, raises `ChangeMissed` and
+  `ChangeUnwatched`, and hands each `change.observed` on.
+  `internal/store/watches.go` is their rows.
+- Blind is never clean: a kind the watch could not see for any reason is
+  `blind`. A watch is a row before its window starts, and an observation
+  is a row before it is sent; a refusal is retried from the row, never
+  dropped, and never fails the watch.
 - `internal/desk` is the logic: a webhook folds into incidents, a person
   moves one through its states, and every change is written to the
   timeline, counted, announced, pushed to the catalog, and posted to the
