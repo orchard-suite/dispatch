@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2](https://github.com/orchard-suite/dispatch/compare/v1.2.1...v1.2.2) (2026-11-27)
+
+### Bug Fixes
+
+* **dispatch:** build when the proxy lags a release ([d2ed098](https://github.com/orchard-suite/dispatch/commit/d2ed0985a4e7f0c91ec532240b386df731780bcb))
+
 ## [1.2.1](https://github.com/orchard-suite/dispatch/compare/v1.2.0...v1.2.1) (2026-11-27)
 
 ### Bug Fixes
