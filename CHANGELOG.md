@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0](https://github.com/orchard-suite/dispatch/compare/v1.1.1...v1.2.0) (2026-11-27)
+
+### Features
+
+* **dispatch:** watch what each change did ([7c3fdad](https://github.com/orchard-suite/dispatch/commit/7c3fdadd5590875f7a0551ae0c51fd5765eb0d68))
+
+### Bug Fixes
+
+* **dispatch:** leave a store's own braces in queries ([b0e82c4](https://github.com/orchard-suite/dispatch/commit/b0e82c4a9b8ee457e48ad66624902ef682eafd72))
+
 ## [1.1.1](https://github.com/orchard-suite/dispatch/compare/v1.1.0...v1.1.1) (2026-11-27)
 
 ### Bug Fixes
