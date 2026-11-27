@@ -26,7 +26,6 @@ func TestHandoffsAndGapsAreToldOnce(t *testing.T) {
 		t.Fatal("the first look tells nobody")
 	}
 	advance(d, 12*time.Hour)
-	box.Now = d.Now
 	d.WatchSchedules(ctx)
 	d.WatchSchedules(ctx)
 	list, _ := d.Store.Inbox(ctx, "bo@example.com", 10)
@@ -60,7 +59,7 @@ func TestHandoffsAndGapsAreToldOnce(t *testing.T) {
 }
 
 func TestASnoozePagesAgainOnlyIfStillAcknowledged(t *testing.T) {
-	d, box := newDeskWithBox(t)
+	d, _ := newDeskWithBox(t)
 	ctx := context.Background()
 	inc, _ := d.Open(ctx, OpenRequest{Title: "Checkout slow", Severity: incident.Critical, Service: "shop"}, incident.SourceDesk, incident.Person("ann@example.com"))
 	if err := d.Snooze(ctx, inc.ID, 30, "ann@example.com"); err == nil {
@@ -71,7 +70,6 @@ func TestASnoozePagesAgainOnlyIfStillAcknowledged(t *testing.T) {
 		t.Fatal(err)
 	}
 	advance(d, 31*time.Minute)
-	box.Now = d.Now
 	d.Remind(ctx)
 	d.Remind(ctx)
 	list, _ := d.Store.Inbox(ctx, "ann@example.com", 10)

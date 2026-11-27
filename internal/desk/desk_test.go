@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/orchard-suite/dispatch/internal/metrics"
 	"github.com/orchard-suite/dispatch/internal/notify"
 	"github.com/orchard-suite/dispatch/internal/orrery"
+	"github.com/orchard-suite/dispatch/internal/outbox"
 	"github.com/orchard-suite/dispatch/internal/store"
 )
 
@@ -39,7 +41,37 @@ func newDesk(t *testing.T) *Desk {
 	return d
 }
 
+// clock is a test's time, which the desk and its outbox both read, from
+// their own goroutines too.
+type clock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+// clocks holds the clock of each desk a test made with one.
+var clocks sync.Map
+
+// shareClock makes the desk and the outbox read one clock from now.
+func shareClock(d *Desk, box *outbox.Outbox, now time.Time) {
+	c := &clock{t: now}
+	clocks.Store(d, c)
+	d.Now, box.Now = c.Now, c.Now
+}
+
 func advance(d *Desk, by time.Duration) {
+	if c, ok := clocks.Load(d); ok {
+		c := c.(*clock)
+		c.mu.Lock()
+		c.t = c.t.Add(by)
+		c.mu.Unlock()
+		return
+	}
 	t := d.Now().Add(by)
 	d.Now = func() time.Time { return t }
 }

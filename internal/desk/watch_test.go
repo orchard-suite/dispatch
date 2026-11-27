@@ -76,8 +76,6 @@ func watchDesk(t *testing.T, path, hub string, mem *signals.Memory, poster *anna
 	quiet := func(context.Context, string) {}
 	sealer, _ := seal.New("k")
 	box := outbox.New(st, sealer, nil, log, quiet)
-	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
-	box.Now = func() time.Time { return now }
 	var d *Desk
 	mt, err := metrics.New(func() metrics.Stats { return d.Stats() })
 	if err != nil {
@@ -88,7 +86,7 @@ func watchDesk(t *testing.T, path, hub string, mem *signals.Memory, poster *anna
 	}
 	cat := orrery.New(orrery.Config{URL: hub, Token: "read", PushToken: "push"}, log, quiet)
 	d = New(st, mt, notify.New("", log, quiet), cat, poster, box, log, "https://dispatch.test")
-	d.Now = func() time.Time { return now }
+	shareClock(d, box, time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC))
 	o := signals.NewOpener(nil)
 	o.Use("prom", mem)
 	d.UseSignals(o)
@@ -107,7 +105,21 @@ func watchSettings(t *testing.T, d *Desk, queries ...signals.Signal) {
 	}
 }
 
-func alertsRaised(t *testing.T, d *Desk) []string {
+// alertsRaised waits for want alert notices, which the outbox takes on
+// its own goroutine, and answers every one taken by then.
+func alertsRaised(t *testing.T, d *Desk, want int) []string {
+	t.Helper()
+	var got []string
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if got = alertNotices(t, d); len(got) >= want {
+			break
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return alertNotices(t, d)
+}
+
+func alertNotices(t *testing.T, d *Desk) []string {
 	t.Helper()
 	rows, err := d.Store.DB().Query(`SELECT json_extract(body, '$.labels.alertname') FROM notice_events WHERE kind = 'alert.firing' ORDER BY id`)
 	if err != nil {
@@ -172,7 +184,7 @@ func TestTheWatchSeesHarmOnWhatAChangeStopsAndWhatLeansOnIt(t *testing.T) {
 	if s := byKey["shop"]; s.Verdict != change.VerdictBlind || s.Kind != "stops" {
 		t.Errorf("what leans on it, with no query for its blueprint, is blind: %+v", s)
 	}
-	if alerts := alertsRaised(t, d); len(alerts) != 1 || alerts[0] != ChangeMissedAlert {
+	if alerts := alertsRaised(t, d, 1); len(alerts) != 1 || alerts[0] != ChangeMissedAlert {
 		t.Errorf("a change routed to no one that did harm is a miss: %v", alerts)
 	}
 	var observed int
@@ -213,7 +225,7 @@ func TestBlindIsNeverClean(t *testing.T) {
 			t.Errorf("%s: %s", s.Kind, s.Verdict)
 		}
 	}
-	if alerts := alertsRaised(t, d); len(alerts) != 1 || alerts[0] != ChangeUnwatchedAlert {
+	if alerts := alertsRaised(t, d, 1); len(alerts) != 1 || alerts[0] != ChangeUnwatchedAlert {
 		t.Errorf("a change nothing could watch: %v", alerts)
 	}
 }
@@ -248,7 +260,7 @@ func TestAnIncidentOnWhatAChangeTouchedJoinsItAndIsAMiss(t *testing.T) {
 	if len(w.Incidents) != 1 || w.Incidents[0].ID != "1" || w.Verdict != change.VerdictBlind {
 		t.Errorf("the incident on the workload that leans on the pods joins: %+v", w)
 	}
-	if alerts := alertsRaised(t, d); len(alerts) != 1 || alerts[0] != ChangeMissedAlert {
+	if alerts := alertsRaised(t, d, 1); len(alerts) != 1 || alerts[0] != ChangeMissedAlert {
 		t.Errorf("a change an incident joined is a miss: %v", alerts)
 	}
 }
@@ -274,7 +286,7 @@ func TestAWatchSurvivesARestart(t *testing.T) {
 	if w.State != incident.WatchDone || w.Verdict != change.VerdictClean {
 		t.Errorf("the pending watch is a row a new desk closes: %+v", w)
 	}
-	if alerts := alertsRaised(t, second); len(alerts) != 0 {
+	if alerts := alertsRaised(t, second, 0); len(alerts) != 0 {
 		t.Errorf("a clean change routed to nobody known raises nothing: %v", alerts)
 	}
 }
@@ -304,13 +316,13 @@ func TestAnEndWithNoStatementIsAChangeWithNoWatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.WatchChanges(ctx)
-	if alerts := alertsRaised(t, d); len(alerts) != 0 {
+	if alerts := alertsRaised(t, d, 0); len(alerts) != 0 {
 		t.Fatalf("its statement may still come: %v", alerts)
 	}
 	advance(d, 11*time.Minute)
 	d.WatchChanges(ctx)
 	d.WatchChanges(ctx)
-	if alerts := alertsRaised(t, d); len(alerts) != 1 || alerts[0] != ChangeUnwatchedAlert {
+	if alerts := alertsRaised(t, d, 1); len(alerts) != 1 || alerts[0] != ChangeUnwatchedAlert {
 		t.Errorf("told once: %v", alerts)
 	}
 }

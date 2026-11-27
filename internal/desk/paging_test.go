@@ -32,15 +32,13 @@ func newDeskWithBox(t *testing.T) (*Desk, *outbox.Outbox) {
 	quiet := func(context.Context, string) {}
 	sealer, _ := seal.New("k")
 	box := outbox.New(st, sealer, nil, log, quiet)
-	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
-	box.Now = func() time.Time { return now }
 	var d *Desk
 	mt, err := metrics.New(func() metrics.Stats { return d.Stats() })
 	if err != nil {
 		t.Fatal(err)
 	}
 	d = New(st, mt, notify.New("", log, quiet), orrery.New(orrery.Config{}, log, quiet), annals.New("", "", log, quiet), box, log, "https://dispatch.test")
-	d.Now = func() time.Time { return now }
+	shareClock(d, box, time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC))
 	return d, box
 }
 
