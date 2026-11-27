@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1](https://github.com/orchard-suite/dispatch/compare/v1.1.0...v1.1.1) (2026-11-27)
+
+### Bug Fixes
+
+* **dispatch:** let leaning name a relation's source ([0e35262](https://github.com/orchard-suite/dispatch/commit/0e35262bbf1f46792f92ec6eb3c94eeab4f0e630))
+
 ## [1.1.0](https://github.com/orchard-suite/dispatch/compare/v1.0.1...v1.1.0) (2026-11-27)
 
 ### Features
