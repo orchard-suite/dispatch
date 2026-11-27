@@ -60,6 +60,8 @@ func (s *Server) apiRoutes() []apiRoute {
 		{"POST /v2/enqueue", http.HandlerFunc(s.apiPagerDuty)},
 		{"POST /v1/heartbeats/{name}", s.token(s.apiBeat)},
 		{"POST /v1/changes", s.token(s.apiAddChange)},
+		{"GET /v1/changes", s.token(s.apiChanges)},
+		{"POST /v1/change-events", s.token(s.apiChangeEvents)},
 		{"GET /v1/schedules", s.token(s.apiOnCall)},
 		{"POST /v1/schedules/{slug}/overrides", s.token(s.apiCover)},
 		{"GET /v1/calendar/{secret}", http.HandlerFunc(s.apiCalendar)},
@@ -74,6 +76,20 @@ func (s *Server) apiRoutes() []apiRoute {
 // personKey holds, in a request's context, the person a personal token
 // acts as.
 type personKey struct{}
+
+// sharedKey marks, in a request's context, a request that carried the
+// shared secret rather than a token the desk issued.
+type sharedKey struct{}
+
+// issued says whether a request carried a token the desk issued that acts
+// as no person.
+func issued(r *http.Request) bool {
+	if shared, _ := r.Context().Value(sharedKey{}).(bool); shared {
+		return false
+	}
+	p, _ := r.Context().Value(personKey{}).(string)
+	return p == ""
+}
 
 // actor is who a request acts as: the person a personal token stands for,
 // or the token itself, on behalf of whoever the body names.
@@ -105,7 +121,7 @@ func (s *Server) token(next tokenHandler) http.Handler {
 		}
 		if s.cfg.AlertmanagerToken != "" && subtle.ConstantTimeCompare([]byte(secret), []byte(s.cfg.AlertmanagerToken)) == 1 {
 			s.logRequest(r.Context(), slog.LevelDebug, "api admitted", r, "token", "shared")
-			next(w, r, "alertmanager")
+			next(w, r.WithContext(context.WithValue(r.Context(), sharedKey{}, true)), "alertmanager")
 			return
 		}
 		tok, ok := s.store.VerifyToken(r.Context(), secret)

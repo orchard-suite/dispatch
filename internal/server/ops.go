@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -42,20 +41,6 @@ func (s *Server) apiBeat(w http.ResponseWriter, r *http.Request, by caller) {
 }
 
 // apiAddChange keeps a deploy or another change to a service.
-func (s *Server) apiAddChange(w http.ResponseWriter, r *http.Request, by caller) {
-	var c incident.Change
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&c); err != nil {
-		writeError(w, http.StatusBadRequest, "the body must be JSON with service and title")
-		return
-	}
-	c.ID, c.Producer = 0, string(by)
-	c, err := s.desk.AddChange(r.Context(), c)
-	if s.failed(w, r, err, "change") {
-		return
-	}
-	writeJSON(w, http.StatusCreated, c)
-}
-
 // formSnooze has the desk page the person again about an acknowledged
 // incident after the minutes they chose.
 func (s *Server) formSnooze(w http.ResponseWriter, r *http.Request) {

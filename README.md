@@ -53,9 +53,10 @@ groups (`POST /v1/azuremonitor`), from anything that speaks
 alert's fingerprint, `error` and `critical` paging), and from
 **heartbeats**: a job promises to check in every interval, and past it
 and its grace the desk raises a `HeartbeatMissed` alert, which the next
-check-in resolves. **Changes**, such as deploys, are kept per service and
-shown on the page of every incident on it that opened up to two hours
-after.
+check-in resolves. **Changes**, such as deploys, are kept by their
+service and the catalog entities they touched, and shown on the page of
+every incident on them, or on a thing that leans on them, that opened up
+to two hours after (Changes below).
 
 Alerts group into one incident by a **grouping key**: the alert's name
 plus its service. An unresolved incident always takes its alerts. A
@@ -215,7 +216,9 @@ the Entra token of an Azure Monitor action group's secure webhook.
 | `PUT /v1/kinds` | A product declares the kinds of events it sends, so people can choose on **Me** how to hear of each (Notifications below). Body: `{"kinds":[{"kind","title","description","weight"}]}`, which replaces that producer's whole set; an empty list clears it. `kind` is dotted lowercase words as in an event, `title` is 1 to 120 characters, `description` at most 300, `weight` is `notice`, `notify`, or `page`, and a producer declares at most 100. Answers `{"kinds": n}`. A kind another producer declared is a 400 naming it. A personal token is a 403. |
 | `POST /v2/enqueue` | PagerDuty's Events API v2: point anything that pages PagerDuty here. The `routing_key` in the body is an issued token or the shared secret. A trigger is an alert; acknowledge notes it on the incident; resolve resolves the alert, never the incident. Answers as PagerDuty does. |
 | `POST /v1/heartbeats/{name}` | A heartbeat's check-in. `?interval=24h` makes one the desk does not know. |
-| `POST /v1/changes` | A deploy or another change to a service. Body: `{"service","title","kind","url","by","at"}`. Sent on as a `change.<kind>` notice. |
+| `POST /v1/changes` | A deploy or another change. Body: `{"service","title","kind","url","by","at","things":[{"blueprint","key"}],"run","record":{"sender","key"}}`, with its service, its things, or both. A field the contract does not name is a 400, never dropped. Answers the change, 201; one whose `record` is kept already answers the kept change, 200. Sent on as a `change.<kind>` notice. |
+| `GET /v1/changes` | Changes back, newest first. Query: `entity=blueprint:key` (repeat it for several), `service=`, `since=`, `until=` (RFC 3339), `limit=` (default 50, at most 500). A change matches on its service or any entity it touched. Answers `{"changes":[...]}`. |
+| `POST /v1/change-events` | The suite's change events, all or none (Changes below). Body: `{"events":[...]}`. Answers `{"kept","repeats"}`, or a 400 `{"error","index","reason"}` naming the first refused event. A producer's token only. |
 | `GET /v1/schedules` | Who each schedule has on call now, and until when. |
 | `POST /v1/schedules/{slug}/overrides` | A cover. Body: `{"person","from","to","reason"}`. |
 | `GET /v1/calendar/{secret}.ics` | One person's shifts as an iCalendar feed. The link's secret, made on **Me** and kept only as a hash, is the credential, since a calendar app sends no bearer token. |
@@ -491,10 +494,62 @@ same way when `NOTIFY_WEBHOOK_SECRET` is set:
 {"event": "incident.state_changed", "at": "...", "incident": {...}, "from": "open", "actor": "who", "url": "..."}
 ```
 
+## Changes
+
+A **change** is one act that alters a live thing: a deploy, an apply, a
+rotation. The desk keeps each one by its **service**, as a producer names
+it, and by the **things** it touched, the catalog entities by blueprint
+and key. A change also carries its outside reference: the **run** that
+made it, such as a pipeline run's URL, and its **record**, the sender and
+key of its `change.stated` event. A change is kept once per record.
+
+Changes arrive two ways:
+
+- `POST /v1/changes`, for anything that can post JSON. Its decoder is
+  strict: a field the contract does not name is refused, so a caller
+  learns at once that a field it sends goes nowhere.
+- `POST /v1/change-events`, the suite's five change events (platformkit's
+  `change` package and its JSON Schema). Each is decoded strictly with
+  `change.Decode` and checked with the contract and the estate's effect
+  kinds. Its `sender` is the token's name, as an event's producer is. An
+  event is kept once by its sender and key; a second send is a repeat. A
+  `change.stated` event makes a change keyed to the statement's things,
+  carrying its digest and its predicted effects; `change.routed`,
+  `change.decided`, `change.ended`, and `change.observed` attach to it by
+  their `of`, whichever arrives first. A batch is kept whole or not at
+  all: one refused event answers 400 with its index and reason, so a
+  sender can split the batch to find it. Only a token issued on
+  **Machines** may send events; a personal token or the shared secret is a
+  403.
+
+An incident is **joined** to a change by catalog entity. An incident on a
+service is on the Orrery workload its namespace resolved to, and on every
+entity that workload **leans on**. Leaning is read from the catalog's
+relations, as the routing document's `settings.changes` names them:
+
+```yaml
+settings:
+  changes:
+    # A relation whose source leans on its target, or "<-relation" for one
+    # whose target leans on its source.
+    leans_on: [depends_on, consumes, services, "<-service"]
+    depth: 2
+    # The estate's own effect kinds, and base kinds whose watch it changes.
+    # A base kind keeps its family and unit; only its watch may differ.
+    kinds:
+      - {name: stops, family: disruption, means: It stops or restarts., unit: copies, watch: 45m}
+```
+
+The incident's page lists every change to its service, its workload, or
+what the workload leans on, from two hours before it opened. With the
+catalog out of reach the page lists those to the service and the workload
+alone, and says so in the log.
+
 ## Routing as a file
 
-The desk's routing can live in git as one YAML document: settings,
-people, groups, chains, schedules, subscriptions, and heartbeats.
+The desk's routing can live in git as one YAML document: settings (with
+how changes are read), people, groups, chains, schedules, subscriptions,
+and heartbeats.
 `GET /v1/config` answers it; `PUT /v1/config` makes the desk match it.
 The whole document is checked before anything changes; a section given
 replaces what the desk has and a section left out is left alone, except
@@ -608,8 +663,9 @@ workload when the namespace resolved to one, so Orrery shows open
 incidents on the thing. The blueprint is offered first on the ingest API
 (`PUT /ingest/blueprints`), and is also written as model YAML in
 `deploy/orrery-catalog/model/incidents.yaml` for the catalog to import.
-`ORRERY_TOKEN` is the read token for resolving namespaces; when it is
-unset, the push token is used for reads as well. The calls go through
+`ORRERY_TOKEN` is the read token for resolving namespaces and for
+walking the catalog's relations to see what leans on what (Changes);
+when it is unset, the push token is used for reads as well. The calls go through
 platformkit's `orrery` client, one per token.
 
 The app does not describe itself to the hub. `orrery.yaml` at the
@@ -691,6 +747,8 @@ metrics; the rest are the desk's own, in `internal/metrics`:
 | `dispatch.assist` | outcome: `done`, `failed` |
 | `dispatch.orrery.pushes` | outcome |
 | `dispatch.annals.posts` | outcome: `posted`, `refused`, `failed` |
+| `dispatch.changes` | source (the producer), outcome: `kept`, `repeat` |
+| `dispatch.change_events` | source (the sender), outcome: `kept`, `repeat`, `refused` |
 | `process.cpu.time`, `process.memory.usage` | state, kind |
 
 ## Settings

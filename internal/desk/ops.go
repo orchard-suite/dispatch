@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/orchard-suite/dispatch/internal/alertmanager"
@@ -151,58 +150,6 @@ func (d *Desk) Hushed(ctx context.Context, e notice.Event) bool {
 		return false
 	}
 	return in
-}
-
-// AddChange keeps a change to a service and sends it to the channels as a
-// notice, change.<kind>.
-func (d *Desk) AddChange(ctx context.Context, c incident.Change) (incident.Change, error) {
-	c.Service, c.Title, c.Kind = strings.TrimSpace(c.Service), strings.TrimSpace(c.Title), strings.TrimSpace(c.Kind)
-	if c.Kind == "" {
-		c.Kind = "deploy"
-	}
-	switch {
-	case c.Service == "" || c.Title == "" || len(c.Title) > 300:
-		return c, fmt.Errorf("%w: a change needs a service and a title of at most 300 characters", ErrInput)
-	case !incident.ValidChangeKind(c.Kind):
-		return c, fmt.Errorf("%w: a change's kind is a lowercase word, such as deploy", ErrInput)
-	case c.URL != "" && !strings.HasPrefix(c.URL, "https://") && !strings.HasPrefix(c.URL, "http://"):
-		return c, fmt.Errorf("%w: a change's url is an absolute http or https URL", ErrInput)
-	}
-	if c.At.IsZero() {
-		c.At = d.Now()
-	}
-	c, err := d.Store.AddChange(ctx, c)
-	if err != nil {
-		return c, err
-	}
-	d.log.InfoContext(ctx, "change kept", "change", c.ID, "component", c.Service, "kind", c.Kind, "producer", c.Producer)
-	if d.outbox != nil {
-		e := notice.Event{Producer: c.Producer, Kind: "change." + c.Kind, Key: fmt.Sprintf("change:%d", c.ID), Title: c.Title, Weight: notice.WeightNotice, At: c.At,
-			Facts: []notice.Fact{{Name: "Service", Value: c.Service}}, Labels: map[string]string{"service": c.Service}}
-		if c.By != "" {
-			e.Facts = append(e.Facts, notice.Fact{Name: "By", Value: c.By})
-		}
-		if c.URL != "" {
-			e.Links = []notice.Link{{Title: "The change", URL: c.URL}}
-		}
-		ctx = context.WithoutCancel(ctx)
-		go func() {
-			if _, err := d.outbox.Accept(ctx, e); err != nil {
-				d.log.ErrorContext(ctx, "change notice not taken", "change", c.ID, "error", err)
-			}
-		}()
-	}
-	return c, nil
-}
-
-// ChangesNear lists the changes to an incident's service from two hours
-// before it opened until it resolved, or now.
-func (d *Desk) ChangesNear(ctx context.Context, inc incident.Incident) ([]incident.Change, error) {
-	until := d.Now()
-	if inc.ResolvedAt != nil {
-		until = *inc.ResolvedAt
-	}
-	return d.Store.Changes(ctx, inc.Service, inc.OpenedAt.Add(-2*time.Hour), until.Add(time.Second))
 }
 
 // AcknowledgeAtSource notes on its incident that an alert was acknowledged

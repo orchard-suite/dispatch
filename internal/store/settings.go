@@ -7,6 +7,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/orchard-suite/platformkit/v3/change"
+
 	"github.com/orchard-suite/dispatch/internal/incident"
 )
 
@@ -46,6 +48,12 @@ type Settings struct {
 	// ServicePages is how many pages a service may cause in seven days
 	// before the desk says it is over budget; 0 is no limit.
 	ServicePages int `json:"service_pages,omitempty"`
+	// Leaning is which catalog relations say a thing leans on another, for
+	// joining incidents to changes and for the watch.
+	Leaning incident.Leaning `json:"leaning,omitempty"`
+	// Kinds are the estate's effect kinds beside the suite's base ones,
+	// and the base ones whose watch the estate changed.
+	Kinds []change.Kind `json:"kinds,omitempty"`
 }
 
 // Night says whether t falls between 22:00 and 07:00 in the desk's zone.

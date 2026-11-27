@@ -6,13 +6,16 @@ package orrery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/orchard-suite/platformkit/v3/change"
 	"github.com/orchard-suite/platformkit/v3/orrery"
 
 	"github.com/orchard-suite/dispatch/internal/incident"
@@ -43,6 +46,7 @@ type Client struct {
 	mu    sync.Mutex
 	cache map[string]cached
 	reach map[string]reached
+	edges map[string]edged
 
 	offerMu sync.Mutex
 	offered bool
@@ -66,7 +70,7 @@ func New(cfg Config, log *slog.Logger, outcome func(ctx context.Context, outcome
 	if cfg.Token == "" {
 		cfg.Token = cfg.PushToken
 	}
-	c := &Client{deskURL: cfg.DeskURL, log: log, outcome: outcome, cache: map[string]cached{}, reach: map[string]reached{}}
+	c := &Client{deskURL: cfg.DeskURL, log: log, outcome: outcome, cache: map[string]cached{}, reach: map[string]reached{}, edges: map[string]edged{}}
 	c.read = hub(cfg.URL, cfg.Token, log)
 	c.push = hub(cfg.URL, cfg.PushToken, log)
 	return c
@@ -330,4 +334,106 @@ func (c *Client) About(ctx context.Context, workload string) map[string]string {
 		}
 	}
 	return out
+}
+
+// WorkloadRef is the catalog entity of an incident's workload.
+func WorkloadRef(workload string) change.Ref {
+	return change.Ref{Blueprint: "sw_workload", Key: workload}
+}
+
+// edge is one relation between two entities, as the hub's walk answers it.
+type edge struct {
+	From     change.Ref `json:"from"`
+	To       change.Ref `json:"to"`
+	Relation string     `json:"relation"`
+}
+
+type edged struct {
+	edges []edge
+	at    time.Time
+}
+
+// edgesOf reads every relation into and out of an entity, one hop. An
+// entity the hub does not know has none. Answers are cached briefly.
+func (c *Client) edgesOf(ctx context.Context, ref change.Ref) ([]edge, error) {
+	id := ref.Blueprint + ":" + ref.Key
+	c.mu.Lock()
+	if hit, ok := c.edges[id]; ok && time.Since(hit.at) < cacheFor {
+		c.mu.Unlock()
+		return hit.edges, nil
+	}
+	c.mu.Unlock()
+	var walk struct {
+		Edges []edge `json:"edges"`
+	}
+	err := c.read.Call(ctx, "GET", "/v1/entities/"+url.PathEscape(ref.Blueprint)+"/"+url.PathEscape(ref.Key)+"/related?direction=both&depth=1", nil, &walk)
+	var api *orrery.APIError
+	if errors.As(err, &api) && api.Status == http.StatusNotFound {
+		err, walk.Edges = nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	c.edges[id] = edged{edges: walk.Edges, at: time.Now()}
+	c.mu.Unlock()
+	return walk.Edges, nil
+}
+
+// Leaners lists the entities that lean on ref, by the leaning's relations,
+// up to its hops, nearest first. It fails when the hub cannot be read.
+func (c *Client) Leaners(ctx context.Context, ref change.Ref, l incident.Leaning) ([]change.Ref, error) {
+	return c.lean(ctx, ref, l, true)
+}
+
+// LeansOn lists the entities ref leans on, by the leaning's relations, up
+// to its hops, nearest first. It fails when the hub cannot be read.
+func (c *Client) LeansOn(ctx context.Context, ref change.Ref, l incident.Leaning) ([]change.Ref, error) {
+	return c.lean(ctx, ref, l, false)
+}
+
+func (c *Client) lean(ctx context.Context, ref change.Ref, l incident.Leaning, leaners bool) ([]change.Ref, error) {
+	hops := l.Hops()
+	if hops == 0 {
+		return nil, nil
+	}
+	if !c.Resolves() {
+		return nil, errors.New("orrery: the catalog cannot be read: no ORRERY_URL or token")
+	}
+	ctx, cancel := context.WithTimeout(ctx, lookupFor)
+	defer cancel()
+	seen := map[change.Ref]bool{ref: true}
+	var out []change.Ref
+	edge := []change.Ref{ref}
+	for hop := 0; hop < hops && len(edge) > 0; hop++ {
+		var next []change.Ref
+		for _, at := range edge {
+			edges, err := c.edgesOf(ctx, at)
+			if err != nil {
+				return out, fmt.Errorf("orrery: relations of %s:%s: %w", at.Blueprint, at.Key, err)
+			}
+			for _, e := range edges {
+				forward, back := l.Leans(e.Relation)
+				var to change.Ref
+				switch {
+				// e.From leans on e.To when forward; e.To leans on e.From when back.
+				case leaners && forward && e.To == at, !leaners && back && e.To == at:
+					to = e.From
+				case leaners && back && e.From == at, !leaners && forward && e.From == at:
+					to = e.To
+				default:
+					continue
+				}
+				if seen[to] {
+					continue
+				}
+				seen[to] = true
+				out = append(out, to)
+				next = append(next, to)
+			}
+		}
+		edge = next
+	}
+	c.log.DebugContext(ctx, "orrery leaning read", "entity", ref.Blueprint+":"+ref.Key, "leaners", leaners, "found", len(out))
+	return out, nil
 }

@@ -71,10 +71,10 @@ func TestAWindowQuietsAlertsAndEvents(t *testing.T) {
 func TestChangesShowBesideIncidents(t *testing.T) {
 	d := newDesk(t)
 	ctx := context.Background()
-	if _, err := d.AddChange(ctx, incident.Change{Producer: "argocd", Service: "comet", Title: "comet v1.2.0", URL: "https://example.org/r/1"}); err != nil {
+	if _, _, err := d.AddChange(ctx, incident.Change{Producer: "argocd", Service: "comet", Title: "comet v1.2.0", URL: "https://example.org/r/1"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := d.AddChange(ctx, incident.Change{Producer: "argocd", Service: "comet", Title: "x", Kind: "Bad Kind"}); err == nil {
+	if _, _, err := d.AddChange(ctx, incident.Change{Producer: "argocd", Service: "comet", Title: "x", Kind: "Bad Kind"}); err == nil {
 		t.Error("a bad kind was kept")
 	}
 	advance(d, 30*time.Minute)

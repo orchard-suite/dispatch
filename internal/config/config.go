@@ -1,15 +1,18 @@
 // Package config is the desk's routing as one YAML document kept in git:
 // people, groups, chains, schedules, subscriptions, heartbeats, and the
-// settings. It reads and writes the document and checks it; applying it
+// settings, with how changes are read. It reads and writes the document and checks it; applying it
 // is the desk's.
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
+	"github.com/orchard-suite/platformkit/v3/change"
 	"gopkg.in/yaml.v3"
 
 	"github.com/orchard-suite/dispatch/internal/incident"
@@ -49,6 +52,71 @@ type Settings struct {
 	Zone              string            `yaml:"zone,omitempty"`
 	PersonPages       int               `yaml:"person_pages,omitempty"`
 	ServicePages      int               `yaml:"service_pages,omitempty"`
+	Changes           *Changes          `yaml:"changes,omitempty"`
+}
+
+// Changes is how the desk reads changes: which catalog relations say a
+// thing leans on another, how many hops to follow them, and the estate's
+// effect kinds.
+type Changes struct {
+	LeansOn []string `yaml:"leans_on,omitempty"`
+	Depth   int      `yaml:"depth,omitempty"`
+	// Kinds are the estate's own effect kinds, and base kinds whose watch
+	// it changes. A base kind keeps its family and unit; only its watch
+	// may differ.
+	Kinds []Kind `yaml:"kinds,omitempty"`
+}
+
+// Kind is an effect kind with its watch written as a duration, such as 2h.
+type Kind struct {
+	Name   string `yaml:"name"`
+	Family string `yaml:"family"`
+	Means  string `yaml:"means"`
+	Unit   string `yaml:"unit,omitempty"`
+	Watch  string `yaml:"watch,omitempty"`
+}
+
+// ToKinds is a document's kinds as the kit's, checked over the base set.
+func (c Changes) ToKinds() ([]change.Kind, *change.Kinds, error) {
+	out := make([]change.Kind, 0, len(c.Kinds))
+	for _, k := range c.Kinds {
+		kind := change.Kind{Name: k.Name, Family: k.Family, Means: k.Means, Unit: k.Unit}
+		if k.Watch != "" {
+			d, err := time.ParseDuration(k.Watch)
+			if err != nil {
+				return nil, nil, fmt.Errorf("%w: kind %s: watch is a duration such as 30m", notice.ErrInvalid, k.Name)
+			}
+			kind.Watch = change.Duration(d)
+		}
+		out = append(out, kind)
+	}
+	reg, err := KindsOf(out)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", notice.ErrInvalid, err)
+	}
+	return out, reg, nil
+}
+
+// KindsOf is the base kinds with an estate's added.
+func KindsOf(kinds []change.Kind) (*change.Kinds, error) {
+	b, err := json.Marshal(change.KindsFile{Kinds: kinds})
+	if err != nil {
+		return nil, err
+	}
+	return change.LoadKinds(bytes.NewReader(b))
+}
+
+// FromKinds is the estate's kinds as a document's.
+func FromKinds(kinds []change.Kind) []Kind {
+	out := make([]Kind, 0, len(kinds))
+	for _, k := range kinds {
+		kind := Kind{Name: k.Name, Family: k.Family, Means: k.Means, Unit: k.Unit}
+		if k.Watch > 0 {
+			kind.Watch = time.Duration(k.Watch).String()
+		}
+		out = append(out, kind)
+	}
+	return out
 }
 
 // Person is a person with their rules written the way the forms take them.

@@ -16,7 +16,8 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
   - `Session` (8080): the desk. Trusts the front door's `X-Forwarded-Email`
     and `X-Forwarded-Groups` headers, so only Traefik may reach it.
   - `API` (8081): `/v1/alertmanager`, `/v1/azuremonitor`, `/v1/incidents`,
-    `/v1/outcomes`, `/v1/events`, `/healthz`. Trusts a bearer token the desk issued or the shared secret
+    `/v1/outcomes`, `/v1/events`, `/v1/changes`, `/v1/change-events`,
+    `/healthz`. Trusts a bearer token the desk issued or the shared secret
     in `ALERTMANAGER_TOKEN`, and nothing else; `/v1/azuremonitor` also
     trusts an action group's secure webhook token (`internal/azuremonitor`'s
     `Door`). `/api/messages` is the
@@ -45,9 +46,16 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
   /v2/enqueue`, whose credential is the body's `routing_key`, checked like
   a bearer token.
 - `internal/incident/routes.go` is the routes that drop, quiet, raise, or
-  rate an alert; `ops.go` is maintenance windows, heartbeats, and changes.
-  `internal/desk/ops.go` raises late heartbeats (`Watch`), quiets events
-  in a window (the outbox's hush), and keeps changes.
+  rate an alert; `ops.go` is maintenance windows, heartbeats, changes, and
+  leaning (which catalog relations say a thing leans on another).
+  `internal/desk/ops.go` raises late heartbeats (`Watch`) and quiets events
+  in a window (the outbox's hush). `internal/desk/changes.go` keeps
+  changes and the suite's change events (platformkit's `change` package:
+  `change.Decode`, the kinds, the types; never copy them here), and joins
+  incidents to changes by catalog entity. `internal/store/changes.go` is
+  their rows; `internal/changetest` builds change events for tests.
+- Every change route decodes strictly: a field the contract does not name
+  is refused, never dropped. A change event's sender is the token's name.
 - `internal/desk` is the logic: a webhook folds into incidents, a person
   moves one through its states, and every change is written to the
   timeline, counted, announced, pushed to the catalog, and posted to the
@@ -56,9 +64,10 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
 - `internal/store` is the SQLite schema and queries.
 - `internal/outcomes` is the maths behind `GET /v1/outcomes` and the
   Components view. Its JSON is a contract: fields are added, never renamed.
-- `internal/orrery` resolves a namespace to its Orrery workload and pushes
-  each incident as an `it_incident` entity, through platformkit's `orrery`
-  client. The blueprint it offers matches
+- `internal/orrery` resolves a namespace to its Orrery workload, pushes
+  each incident as an `it_incident` entity, and walks the catalog's
+  relations for what leans on what (`Leaners`, `LeansOn`), through
+  platformkit's `orrery` client. The blueprint it offers matches
   `deploy/orrery-catalog/model/incidents.yaml`.
 - `orrery.yaml` at the root is what this repository builds, for the estate
   that reads it: Muster reads it from the repository and writes the

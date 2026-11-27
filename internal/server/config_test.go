@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/orchard-suite/dispatch/internal/config"
 )
@@ -93,5 +94,57 @@ func TestConfigAppliesAndExports(t *testing.T) {
 	}
 	if beats, _ := h.desk.Store.Heartbeats(ctx); len(beats) != 0 {
 		t.Errorf("an empty section empties it: %+v", beats)
+	}
+}
+
+func TestConfigCarriesHowChangesAreRead(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	put := func(body string) *httptest.ResponseRecorder {
+		return h.do(h.api, bearer(httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(body)), shared))
+	}
+	doc := `settings:
+  grouping_minutes: 15
+  changes:
+    leans_on: [depends_on, "<-service"]
+    depth: 2
+    kinds:
+      - {name: stops, family: disruption, means: It stops or restarts., unit: copies, watch: 45m}
+      - {name: halts, family: disruption, means: A line stops., watch: 1h}
+`
+	if rec := put(doc); rec.Code != 200 {
+		t.Fatalf("apply %d %s", rec.Code, rec.Body.String())
+	}
+	st, _ := h.desk.Store.Settings(ctx)
+	if len(st.Leaning.Relations) != 2 || st.Leaning.Depth != 2 || len(st.Kinds) != 2 {
+		t.Fatalf("settings %+v", st)
+	}
+	kinds, err := h.desk.Kinds(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k, _ := kinds.Get("stops"); time.Duration(k.Watch) != 45*time.Minute {
+		t.Errorf("a base kind's watch changed: %+v", k)
+	}
+	if _, ok := kinds.Get("halts"); !ok {
+		t.Error("the estate's own kind")
+	}
+	for name, bad := range map[string]string{
+		"a bad relation":          "settings:\n  changes:\n    leans_on: [Depends On]\n",
+		"a base kind's family":    "settings:\n  changes:\n    kinds:\n      - {name: stops, family: exposure, means: x}\n",
+		"a depth past four":       "settings:\n  changes:\n    leans_on: [depends_on]\n    depth: 9\n",
+		"a watch that is no time": "settings:\n  changes:\n    kinds:\n      - {name: halts, family: disruption, means: x, watch: soon}\n",
+	} {
+		if rec := put(bad); rec.Code != 400 {
+			t.Errorf("%s: %d %s", name, rec.Code, rec.Body.String())
+		}
+	}
+	exported := h.do(h.api, bearer(httptest.NewRequest(http.MethodGet, "/v1/config", nil), shared))
+	back, err := config.Read(strings.NewReader(exported.Body.String()))
+	if err != nil || back.Settings.Changes == nil || back.Settings.Changes.Kinds[0].Watch != "45m0s" || back.Settings.Changes.LeansOn[1] != "<-service" {
+		t.Fatalf("export %v %s", err, exported.Body.String())
+	}
+	if rec := put(exported.Body.String()); rec.Code != 200 {
+		t.Errorf("reapply %d %s", rec.Code, rec.Body.String())
 	}
 }

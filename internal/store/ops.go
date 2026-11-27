@@ -139,35 +139,3 @@ func (s *Store) MarkLate(ctx context.Context, name string) (bool, error) {
 func (s *Store) DeleteHeartbeat(ctx context.Context, name string) error {
 	return s.affected(s.db.ExecContext(ctx, `DELETE FROM heartbeats WHERE name = ?`, name))
 }
-
-// AddChange keeps a change to a service.
-func (s *Store) AddChange(ctx context.Context, c incident.Change) (incident.Change, error) {
-	res, err := s.db.ExecContext(ctx, `INSERT INTO changes (producer, service, kind, title, url, by_whom, at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.Producer, c.Service, c.Kind, c.Title, c.URL, c.By, fmtTime(c.At))
-	if err != nil {
-		return c, err
-	}
-	c.ID, err = res.LastInsertId()
-	return c, err
-}
-
-// Changes lists a service's changes in [since, until), newest first.
-func (s *Store) Changes(ctx context.Context, service string, since, until time.Time) ([]incident.Change, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, producer, service, kind, title, url, by_whom, at FROM changes WHERE service = ? AND at >= ? AND at < ? ORDER BY at DESC, id DESC LIMIT 50`,
-		service, fmtTime(since), fmtTime(until))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []incident.Change
-	for rows.Next() {
-		var c incident.Change
-		var at string
-		if err := rows.Scan(&c.ID, &c.Producer, &c.Service, &c.Kind, &c.Title, &c.URL, &c.By, &at); err != nil {
-			return nil, err
-		}
-		c.At = parseTime(at)
-		out = append(out, c)
-	}
-	return out, rows.Err()
-}

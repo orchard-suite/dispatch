@@ -23,6 +23,8 @@ tags:
     description: Time to acknowledge and restore, by service.
   - name: notices
     description: Events any product sends, delivered to the channels that subscribe to them.
+  - name: changes
+    description: Changes to live things, keyed to the catalog, and the suite's change events.
 paths:
   /v1/alertmanager:
     post:
@@ -590,19 +592,24 @@ paths:
   /v1/changes:
     post:
       operationId: addChange
-      summary: Record a deploy or another change to a service
+      summary: Record a deploy or another change to a service or to catalog entities
       description: >-
-        The change shows on the page of every incident on the service that
-        opened up to two hours after it, and goes to the channels as a
-        change.<kind> notice labelled with the service.
-      tags: [alerts]
+        The change shows on the page of every incident that opened up to two
+        hours after it on its service, or on a catalog entity it touched or a
+        thing that leans on one, and goes to the channels as a change.<kind>
+        notice. A field the contract does not name is refused, never dropped.
+        A change whose record is kept already is answered with the kept one
+        and 200, and told nowhere again.
+      tags: [changes]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [service, title]
+              additionalProperties: false
+              required: [title]
+              description: Names its service, its things, or both.
               properties:
                 service: {type: string}
                 kind: {type: string, pattern: "^[a-z][a-z0-9_]{0,30}$", description: Deploy when left out.}
@@ -610,16 +617,116 @@ paths:
                 url: {type: string, format: uri}
                 by: {type: string}
                 at: {type: string, format: date-time, description: Now when left out.}
+                things:
+                  type: array
+                  maxItems: 1000
+                  description: The catalog entities the change touched.
+                  items: {$ref: "#/components/schemas/ChangeThing"}
+                run: {type: string, maxLength: 256, description: "The outside run that made the change, such as a pipeline run's URL."}
+                record: {$ref: "#/components/schemas/ChangeRecord"}
       responses:
         "201":
           description: Kept.
           content:
             application/json:
-              schema: {type: object}
+              schema: {$ref: "#/components/schemas/Change"}
+        "200":
+          description: Its record was kept already; the kept change.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Change"}
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+    get:
+      operationId: listChanges
+      summary: Read changes back by entity, service, and time
+      description: >-
+        Newest first. A change matches when it is on the service or touched
+        one of the entities; with neither, every change in the time matches.
+      tags: [changes]
+      parameters:
+        - {name: entity, in: query, description: "A catalog entity as blueprint:key. Repeat it for several.", schema: {type: array, items: {type: string}}, style: form, explode: true}
+        - {name: service, in: query, schema: {type: string}}
+        - {name: since, in: query, description: Made at or after., schema: {type: string, format: date-time}}
+        - {name: until, in: query, description: Made before., schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 50}}
+      responses:
+        "200":
+          description: The changes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changes]
+                properties:
+                  changes: {type: array, items: {$ref: "#/components/schemas/Change"}}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/change-events:
+    post:
+      operationId: takeChangeEvents
+      summary: Keep a batch of change events, all or none
+      description: >-
+        Each event is one of the suite's change events (platformkit's change
+        package and its JSON Schema), decoded strictly and checked against
+        the contract and the estate's effect kinds. Its sender is the
+        token's name. An event is kept once by its sender and key; one kept
+        already is a repeat. A change.stated event makes a change keyed to
+        the statement's things, carrying its effects; change.routed,
+        change.decided, change.ended, and change.observed attach to it by
+        their of, whichever comes first. One refused event refuses the whole
+        batch, so a sender can split it to find the one. Only a token the
+        desk issued for a producer is taken: never a personal token or the
+        shared secret.
+      tags: [changes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items: {type: object, description: "A change event, as platformkit's change/schema/event.json."}
+      responses:
+        "200":
+          description: How many were kept, and how many were repeats.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kept, repeats]
+                properties:
+                  kept: {type: integer}
+                  repeats: {type: integer}
+        "400":
+          description: The first event refused and why; none of the batch is kept.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, index, reason]
+                properties:
+                  error: {type: string}
+                  index: {type: integer, description: The event's place in the batch, from 0.}
+                  reason: {type: string, description: "The contract's reason, such as unknown_kind, digest_mismatch, or sender_mismatch."}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: A personal token or the shared secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /v1/schedules:
     get:
       operationId: listOnCall
@@ -955,6 +1062,52 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
   schemas:
+    ChangeThing:
+      type: object
+      additionalProperties: false
+      required: [blueprint, key]
+      description: One catalog entity, by its blueprint and key.
+      properties:
+        blueprint: {type: string, pattern: "^[a-z0-9][a-z0-9._-]*$"}
+        key: {type: string, maxLength: 256}
+    ChangeRecord:
+      type: object
+      additionalProperties: false
+      required: [sender, key]
+      description: "The change's own record: the sender of its change.stated event and that event's key."
+      properties:
+        sender: {type: string, pattern: "^[a-z0-9][a-z0-9._-]*$"}
+        key: {type: string, maxLength: 256}
+    Change:
+      type: object
+      required: [id, producer, kind, title, at]
+      properties:
+        id: {type: integer, format: int64}
+        producer: {type: string, description: The token that sent it.}
+        service: {type: string}
+        things: {type: array, items: {$ref: "#/components/schemas/ChangeThing"}}
+        kind: {type: string}
+        title: {type: string}
+        url: {type: string}
+        by: {type: string}
+        at: {type: string, format: date-time}
+        run: {type: string}
+        record: {$ref: "#/components/schemas/ChangeRecord"}
+        digest: {type: string, description: "The statement's digest, from its change.stated event."}
+        effects: {type: array, items: {type: object}, description: "The statement's predicted effects, as the kit's change.Effect."}
+        route: {type: string, enum: [no_one, people], description: From change.routed.}
+        outcome: {type: string, enum: [ok, failed, refused], description: From change.ended.}
+        ended_at: {type: string, format: date-time}
+        events:
+          type: array
+          description: The change events kept for it, oldest first.
+          items:
+            type: object
+            properties:
+              event: {type: string}
+              sender: {type: string}
+              key: {type: string}
+              at: {type: string, format: date-time}
     NoticeRef:
       type: object
       required: [blueprint, key]

@@ -12,6 +12,7 @@ import (
 	"github.com/orchard-suite/dispatch/internal/incident"
 	"github.com/orchard-suite/dispatch/internal/notice"
 	"github.com/orchard-suite/dispatch/internal/orrery"
+	"github.com/orchard-suite/dispatch/internal/store"
 )
 
 // Assistant writes and investigates for the desk; nil turns it off.
@@ -168,7 +169,7 @@ func (d *Desk) incidentTools(ctx context.Context, inc incident.Incident, materia
 				if in.Days < 1 || in.Days > 14 {
 					in.Days = 3
 				}
-				changes, err := d.Store.Changes(ctx, in.Service, d.Now().AddDate(0, 0, -in.Days), d.Now().Add(time.Second))
+				changes, err := d.Store.Changes(ctx, store.ChangeFilter{Service: in.Service, Since: d.Now().AddDate(0, 0, -in.Days), Until: d.Now().Add(time.Second), Limit: 50})
 				if err != nil {
 					return "", err
 				}

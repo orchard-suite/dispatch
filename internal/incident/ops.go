@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/orchard-suite/platformkit/v3/change"
 )
 
 // Window quiets a service for a while: an alert on a service it matches
@@ -93,20 +96,139 @@ func (h Heartbeat) ServiceName() string {
 	return h.Name
 }
 
-// Change is a deploy or another change to a service, shown beside the
-// service's incidents.
+// Change is a deploy or another change, kept by the service and the
+// catalog entities it touched, and shown beside the incidents on them.
 type Change struct {
-	ID       int64     `json:"id"`
-	Producer string    `json:"producer"`
-	Service  string    `json:"service"`
-	Kind     string    `json:"kind"`
-	Title    string    `json:"title"`
-	URL      string    `json:"url,omitempty"`
-	By       string    `json:"by,omitempty"`
-	At       time.Time `json:"at"`
+	ID       int64  `json:"id"`
+	Producer string `json:"producer"`
+	// Service is the component the change is to, as a producer names it.
+	// A change names its service, its things, or both.
+	Service string `json:"service,omitempty"`
+	// Things are the catalog entities the change touched.
+	Things []change.Ref `json:"things,omitempty"`
+	Kind   string       `json:"kind"`
+	Title  string       `json:"title"`
+	URL    string       `json:"url,omitempty"`
+	By     string       `json:"by,omitempty"`
+	At     time.Time    `json:"at"`
+	// Run is the outside run that made the change, such as a pipeline
+	// run's URL or a hub run's id.
+	Run string `json:"run,omitempty"`
+	// Record is the change's own record: the sender of its change.stated
+	// event and that event's key. A change is kept once per record.
+	Record *change.EventRef `json:"record,omitempty"`
+	// Digest is the statement's digest, from its change.stated event.
+	Digest string `json:"digest,omitempty"`
+	// Effects are what the statement predicted the change does.
+	Effects []change.Effect `json:"effects,omitempty"`
+	// Route is the judge's route, from change.routed: no_one or people.
+	Route string `json:"route,omitempty"`
+	// Outcome is how it ended, from change.ended: ok, failed, or refused.
+	Outcome string     `json:"outcome,omitempty"`
+	EndedAt *time.Time `json:"ended_at,omitempty"`
+	// Events are the change events kept for it, oldest first.
+	Events []ChangeEvent `json:"events,omitempty"`
+}
+
+// ChangeEvent is one change event the desk kept, by its name, sender,
+// key, and time.
+type ChangeEvent struct {
+	Event  string    `json:"event"`
+	Sender string    `json:"sender"`
+	Key    string    `json:"key"`
+	At     time.Time `json:"at"`
+}
+
+// Name is how a change is shown: its service, or else its first thing.
+func (c Change) Name() string {
+	if c.Service != "" || len(c.Things) == 0 {
+		return c.Service
+	}
+	return c.Things[0].Blueprint + ":" + c.Things[0].Key
+}
+
+// Touches says whether the change touched one of the entities.
+func (c Change) Touches(entities []change.Ref) bool {
+	for _, t := range c.Things {
+		if slices.Contains(entities, t) {
+			return true
+		}
+	}
+	return false
 }
 
 var changeKind = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 
 // ValidChangeKind says whether s names a kind of change, such as deploy.
 func ValidChangeKind(s string) bool { return changeKind.MatchString(s) }
+
+// ChangeKindOf is the kind of change an artifact's kind makes, such as
+// terraform_plan for terraform-plan; change when it names none.
+func ChangeKindOf(artifact string) string {
+	k := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			return r
+		}
+		return '_'
+	}, strings.ToLower(artifact))
+	if len(k) > 31 {
+		k = k[:31]
+	}
+	if !ValidChangeKind(k) {
+		return "change"
+	}
+	return k
+}
+
+// Leaning is how the desk reads, from the catalog's relations, which
+// things lean on which: a thing leans on another when its trouble can come
+// from the other's. Each of Relations names a relation whose source leans
+// on its target, or, written "<-relation", one whose target leans on its
+// source. Depth is how many such hops to follow.
+type Leaning struct {
+	Relations []string `json:"relations,omitempty"`
+	Depth     int      `json:"depth,omitempty"`
+}
+
+// MaxLeanDepth is the most hops leaning is followed.
+const MaxLeanDepth = 4
+
+var relationName = regexp.MustCompile(`^(<-)?[a-z][a-z0-9_]{0,62}$`)
+
+// Validate checks the relations and the depth.
+func (l Leaning) Validate() error {
+	for _, r := range l.Relations {
+		if !relationName.MatchString(r) {
+			return fmt.Errorf("leans_on names relations, such as depends_on or <-service; %q is not one", r)
+		}
+	}
+	if l.Depth < 0 || l.Depth > MaxLeanDepth {
+		return fmt.Errorf("depth is 0 to %d hops", MaxLeanDepth)
+	}
+	return nil
+}
+
+// Hops is how many hops to follow: Depth, or one when relations are named
+// with none.
+func (l Leaning) Hops() int {
+	if len(l.Relations) == 0 {
+		return 0
+	}
+	return max(l.Depth, 1)
+}
+
+// Leans says how an edge from one entity to another by a relation leans:
+// forward when its source leans on its target, back when its target leans
+// on its source.
+func (l Leaning) Leans(relation string) (forward, back bool) {
+	for _, r := range l.Relations {
+		if r == relation {
+			forward = true
+		}
+		if r == "<-"+relation {
+			back = true
+		}
+	}
+	return forward, back
+}

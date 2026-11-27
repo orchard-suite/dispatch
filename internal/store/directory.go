@@ -288,6 +288,41 @@ CREATE TABLE person_kinds (
 );`,
 	// 10: when a person agreed on Me to be texted at their SMS number.
 	`ALTER TABLE people ADD COLUMN sms_consent_at TEXT NOT NULL DEFAULT '';`,
+	// 11: a change names the catalog entities it touched, the run that made
+	// it, and its record (the sender and key of its change.stated event),
+	// and carries what its change events said; the events themselves are
+	// kept once each by sender and key.
+	`ALTER TABLE changes ADD COLUMN run TEXT NOT NULL DEFAULT '';
+ALTER TABLE changes ADD COLUMN record_sender TEXT NOT NULL DEFAULT '';
+ALTER TABLE changes ADD COLUMN record_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE changes ADD COLUMN digest TEXT NOT NULL DEFAULT '';
+ALTER TABLE changes ADD COLUMN effects TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE changes ADD COLUMN route TEXT NOT NULL DEFAULT '';
+ALTER TABLE changes ADD COLUMN outcome TEXT NOT NULL DEFAULT '';
+ALTER TABLE changes ADD COLUMN ended_at TEXT;
+CREATE UNIQUE INDEX changes_record ON changes(record_sender, record_key) WHERE record_key <> '';
+CREATE INDEX changes_at ON changes(at);
+CREATE TABLE change_things (
+  change_id INTEGER NOT NULL REFERENCES changes(id) ON DELETE CASCADE,
+  blueprint TEXT NOT NULL,
+  key TEXT NOT NULL,
+  PRIMARY KEY (change_id, blueprint, key)
+);
+CREATE INDEX change_things_entity ON change_things(blueprint, key);
+CREATE TABLE change_events (
+  sender TEXT NOT NULL,
+  key TEXT NOT NULL,
+  event TEXT NOT NULL,
+  of_sender TEXT NOT NULL DEFAULT '',
+  of_key TEXT NOT NULL DEFAULT '',
+  change_id INTEGER REFERENCES changes(id) ON DELETE CASCADE,
+  at TEXT NOT NULL,
+  body TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  PRIMARY KEY (sender, key)
+);
+CREATE INDEX change_events_of ON change_events(of_sender, of_key);
+CREATE INDEX change_events_change ON change_events(change_id, at);`,
 }
 
 // upgrade runs the upgrades this database has not had, each in its own
