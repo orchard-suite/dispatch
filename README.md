@@ -566,10 +566,12 @@ says which.
   watch, in `settings.changes.kinds`.
 - **What it reads.** The estate's own signals: restarts, failed health
   checks, refused callers, the error rate. It reads them through a port
-  (`internal/signals`) with an adapter for each store: Prometheus and
-  Azure Monitor (Log Analytics, read as the pod's workload identity). Which
-  query reads which signal for which blueprint is in the routing document,
-  never in code:
+  (`internal/signals`) with an adapter for each store: Prometheus, Azure
+  Monitor (Log Analytics, read as the pod's workload identity), and Azure
+  platform (each resource's own platform metrics and Resource Health,
+  read through Azure Resource Manager as the pod's workload identity, with
+  no workspace and nothing set up per resource). Which query reads which
+  signal for which subjects is in the routing document, never in code:
 
   ```yaml
   settings:
@@ -578,6 +580,7 @@ says which.
         stores:
           prom: {kind: prometheus, url: "http://prometheus.example.org:9090"}
           logs: {kind: azure-monitor, workspace: 00000000-0000-0000-0000-000000000000}
+          azure: {kind: azure-platform}
         queries:
           - blueprint: k8s_workload
             signal: restarts
@@ -585,6 +588,13 @@ says which.
             store: prom
             query: 'sum(increase(kube_pod_container_status_restarts_total{namespace="{namespace.title}", pod=~"{name}-.*"}[{window}]))'
             above: 0
+          - blueprint: azure_resource
+            where: {type: Microsoft.Storage/storageAccounts}
+            signal: availability
+            kinds: [stops]
+            store: azure
+            query: 'metrics {resource_id} Availability minimum'
+            below: 100
   ```
 
   A query takes the subject's catalog fields as parameters, each quoted
@@ -593,9 +603,39 @@ says which.
   object field), a relation's first target (`{namespace.key}`,
   `{namespace.title}`), and the first thing of a kind that points at it
   (`{<-k8s_namespace:workload.title}`). `{window}` is the kind's window in
-  seconds, such as `1800s`. A Prometheus query is read at the window's
-  end; an Azure Monitor one over the window. A number above `above` is
-  harm.
+  seconds, such as `1800s`. `where` names parameters by the same names and
+  the value each must equal, so one blueprint takes different queries by
+  a field such as `type`; a subject no query matches is blind. A
+  Prometheus query is read at the window's end; an Azure Monitor one and
+  an Azure platform one over the window. A number above `above` or below
+  `below` is harm; a query that sets neither is harm above 0.
+- **Azure platform queries.** One line, in one of two forms:
+
+  ```text
+  health <resource>
+  metrics <resource> <metric> <aggregation> [namespace <ns>] [seen <metric>] [where <filter>]
+  ```
+
+  `health` reads the resource's Resource Health history (Availability
+  Statuses, List) and answers the minutes it was `Unavailable` or
+  `Degraded` in the window; a window partly `Unknown`, or older than the
+  history, is no data unless it saw harm, and a type Resource Health does
+  not cover is a failed store. `metrics` reads one platform metric at a
+  one-minute grain and answers it under its aggregation across every
+  point and series: the sum for `total` and `count`, the least for
+  `minimum`, the greatest for `maximum`, the mean for `average`. `where`
+  is the Metrics API's own `$filter` on the metric's dimensions, to the
+  end of the line, such as `ResponseType eq 'AuthorizationError' or
+  ResponseType eq 'ClientThrottlingError'`. Azure sends no series for a
+  filter that matched nothing, so `seen`, for a total or a count, names a
+  metric whose points prove the resource reported: with none of its own,
+  the read is 0 when the seen metric has points, and no data when it has
+  none. A parameter inside a filter is quoted as OData quotes a string.
+  The identity needs `Microsoft.Insights/Metrics/Read` and
+  `Microsoft.ResourceHealth/AvailabilityStatuses/read` where it reads.
+  Reading platform metrics is billed per call past a free monthly
+  allowance (Azure Monitor pricing, "Platform metric queries"); Resource
+  Health is free.
 - **Seen, clean, or blind.** Each kind on each subject is recorded as
   `harm`, `clean`, or `blind`, with the signals it read. Blind is never
   clean: a subject whose blueprint has no query, a store with no adapter,
@@ -901,7 +941,7 @@ metrics; the rest are the desk's own, in `internal/metrics`:
 | `ASSIST_TOOLS_TOKEN` | A hub access token whose role holds only `tools.read`. With `ORRERY_URL`, it lends an investigation the hub's read tools (The assistant). A secret. Without it an investigation has no data tools. |
 | `MAIL_SMTP_URL` | Sends email through an SMTP server instead: `smtp://user:pass@host:587` (STARTTLS, required before signing in) or `smtps://user:pass@host:465`. A secret; never logged. Set one transport, not both. |
 | `ANNALS_URL`, `ANNALS_TOKEN` | Annals's API base URL and a token issued for the source `dispatch`. Off unless both are set. |
-| `WATCH_APP_ID`, `WATCH_TENANT_ID`, `WATCH_TOKEN_FILE` | The Entra app or managed identity the watch reads Azure Monitor stores as, its tenant, and its federated token file. Default `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_FEDERATED_TOKEN_FILE`. It needs Log Analytics Reader on what it reads. Without one every Azure Monitor store is blind. |
+| `WATCH_APP_ID`, `WATCH_TENANT_ID`, `WATCH_TOKEN_FILE` | The Entra app or managed identity the watch reads Azure stores as, its tenant, and its federated token file. Default `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_FEDERATED_TOKEN_FILE`. It needs Log Analytics Reader on what an Azure Monitor store reads, and metrics and Resource Health reads on what an Azure platform store reads. Without one every Azure store is blind. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` | OTLP export. |
 | `FARO_URL`, `FARO_API_KEY` | The browser telemetry relay. |
 

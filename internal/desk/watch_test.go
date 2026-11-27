@@ -564,3 +564,36 @@ func TestARefusalForItsContentIsFinal(t *testing.T) {
 		})
 	}
 }
+
+func TestTheWatchReadsOnlyTheQueriesWhoseWhereTheSubjectMatches(t *testing.T) {
+	ctx := context.Background()
+	hub := hubFor(t)
+	mem := signals.NewMemory()
+	mem.Set(`availability{app="shop"}`, 99.5)
+	mem.Set(`errors{app="shop"}`, 7)
+	d := watchDesk(t, filepath.Join(t.TempDir(), "d.db"), hub.URL, mem, nil)
+	full := 100.0
+	watchSettings(t, d,
+		signals.Signal{Blueprint: "k8s_workload", Where: map[string]string{"labels.app": "shop"}, Signal: "availability", Kinds: []string{"stops"}, Store: "prom", Query: `availability{app="{labels.app}"}`, Below: &full},
+		signals.Signal{Blueprint: "k8s_workload", Where: map[string]string{"labels.app": "till"}, Signal: "errors", Kinds: []string{"stops"}, Store: "prom", Query: `errors{app="{labels.app}"}`},
+	)
+	c := changetest.New("orrery", "run-where", []change.Ref{shopPods}, changetest.Stops(shopPods))
+	at := d.Now()
+	if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(c.Stated(at), c.Routed(change.RoutePeople, at), c.Ended(change.OutcomeOK, at))); err != nil {
+		t.Fatal(err)
+	}
+	advance(d, 30*time.Minute)
+	d.WatchChanges(ctx)
+	w := watchOf(t, d, "run-where").Watch
+	if w.State != incident.WatchDone || len(w.Sights) != 1 {
+		t.Fatalf("%+v", w)
+	}
+	if s := w.Sights[0]; s.Verdict != change.VerdictHarm || len(s.Signals) != 1 || s.Signals[0] != "availability" {
+		t.Errorf("only the shop's query is read, and under 100 is harm: %+v", s)
+	}
+	for _, q := range mem.Asked {
+		if strings.HasPrefix(q, "errors") {
+			t.Errorf("a query whose where the subject does not match was read: %s", q)
+		}
+	}
+}

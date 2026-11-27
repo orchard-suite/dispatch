@@ -161,6 +161,7 @@ func TestConfigCarriesTheWatchAndChecksItWhole(t *testing.T) {
     watch:
       stores:
         prom: {kind: prometheus, url: "http://prometheus.example.org:9090"}
+        azure: {kind: azure-platform}
       queries:
         - blueprint: k8s_workload
           signal: restarts
@@ -168,11 +169,18 @@ func TestConfigCarriesTheWatchAndChecksItWhole(t *testing.T) {
           store: prom
           query: 'sum(increase(restarts{namespace="{namespace.title}"}[{window}]))'
           above: 0
+        - blueprint: azure_resource
+          where: {type: Microsoft.Storage/storageAccounts}
+          signal: availability
+          kinds: [stops]
+          store: azure
+          query: 'metrics {resource_id} Availability minimum'
+          below: 100
 `
 	if rec := put(doc); rec.Code != 200 {
 		t.Fatalf("apply %d %s", rec.Code, rec.Body.String())
 	}
-	if st, _ := h.desk.Store.Settings(ctx); len(st.Watch.Queries) != 1 || st.Watch.Stores["prom"].URL != "http://prometheus.example.org:9090" {
+	if st, _ := h.desk.Store.Settings(ctx); len(st.Watch.Queries) != 2 || st.Watch.Stores["prom"].URL != "http://prometheus.example.org:9090" {
 		t.Fatalf("settings %+v", st.Watch)
 	}
 	bad := strings.Replace(doc, "store: prom", "store: loki", 1)
@@ -186,6 +194,13 @@ func TestConfigCarriesTheWatchAndChecksItWhole(t *testing.T) {
 	back, err := config.Read(strings.NewReader(exported.Body.String()))
 	if err != nil || back.Settings.Changes == nil || back.Settings.Changes.Watch == nil || back.Settings.Changes.Watch.Queries[0].Signal != "restarts" {
 		t.Fatalf("export %v %s", err, exported.Body.String())
+	}
+	if q := back.Settings.Changes.Watch.Queries; *q[0].Above != 0 || q[1].Where["type"] != "Microsoft.Storage/storageAccounts" || q[1].Below == nil || *q[1].Below != 100 || q[1].Above != nil {
+		t.Errorf("the export keeps above, where, and below: %s", exported.Body.String())
+	}
+	unread := strings.Replace(doc, "Availability minimum", "Availability median", 1)
+	if rec := put(unread); rec.Code != 400 || !strings.Contains(rec.Body.String(), "aggregation") {
+		t.Errorf("a platform query the store cannot read: %d %s", rec.Code, rec.Body.String())
 	}
 	if rec := put(exported.Body.String()); rec.Code != 200 {
 		t.Errorf("reapply %d %s", rec.Code, rec.Body.String())

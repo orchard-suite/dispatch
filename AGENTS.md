@@ -58,9 +58,14 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
   is refused, never dropped. A change event's sender is the token's name.
 - `internal/signals` is the watch's port to signal stores: a query with
   the subject's catalog fields as parameters, its adapters (Prometheus,
-  Azure Monitor) and `Memory` for tests, the watch's settings, and `Judge`.
-  It has no storage. Which query reads which signal for which blueprint is
-  the routing document's (`settings.changes.watch`), never code.
+  Azure Monitor's Log Analytics, and `AzurePlatform`, which reads a
+  resource's platform metrics and Resource Health through Resource
+  Manager in the line form `ParsePlatform` reads) and `Memory` for tests,
+  the watch's settings, and `Judge`. A query's `where` picks the subjects
+  it reads by their parameters, and its `above` or `below` says what is
+  harm. It has no storage. Which query reads which signal for which
+  subjects is the routing document's (`settings.changes.watch`), never
+  code.
   `internal/desk/watch.go` starts a watch when a change is stated and
   ended and ran, closes it when its window passes (`WatchChanges`, driven
   by `Watch`), joins incidents, raises `ChangeMissed` and

@@ -259,10 +259,10 @@ func (d *Desk) closeWatch(ctx context.Context, id int64) error {
 }
 
 // see reads one kind on one subject over its window through every query
-// the settings give for its blueprint.
+// the settings give for its blueprint and its fields.
 func (d *Desk) see(ctx context.Context, id int64, ws signals.Settings, l look, params map[string]string, from time.Time) change.Sight {
 	sight := change.Sight{Kind: l.kind, Subject: l.subject, Path: l.path}
-	queries := ws.For(l.subject.Blueprint, l.kind)
+	queries := ws.For(l.subject.Blueprint, l.kind, params)
 	var looks []signals.Look
 	for _, q := range queries {
 		sight.Signals = append(sight.Signals, q.Signal)
@@ -271,7 +271,7 @@ func (d *Desk) see(ctx context.Context, id int64, ws signals.Settings, l look, p
 	sight.Verdict = signals.Judge(looks)
 	subject := l.subject.Blueprint + ":" + l.subject.Key
 	if len(queries) == 0 {
-		d.log.InfoContext(ctx, "watch blind: no query reads this kind for the blueprint", "change", id, "kind", l.kind, "subject", subject)
+		d.log.InfoContext(ctx, "watch blind: no query reads this kind for the subject", "change", id, "kind", l.kind, "subject", subject)
 		return sight
 	}
 	for _, lk := range looks {
@@ -304,8 +304,9 @@ func (d *Desk) read(ctx context.Context, ws signals.Settings, q signals.Signal, 
 		return blind(err.Error())
 	case err != nil:
 		return blind("the store failed: " + clipText(err.Error(), 300))
-	case v > q.Above:
-		return signals.Look{Signal: q.Signal, Verdict: change.VerdictHarm, Why: fmt.Sprintf("%g is above %g", v, q.Above)}
+	}
+	if harm, why := q.Harm(v); harm {
+		return signals.Look{Signal: q.Signal, Verdict: change.VerdictHarm, Why: why}
 	}
 	return signals.Look{Signal: q.Signal, Verdict: change.VerdictClean}
 }
