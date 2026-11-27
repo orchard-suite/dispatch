@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0](https://github.com/orchard-suite/dispatch/compare/v1.0.1...v1.1.0) (2026-11-27)
+
+### Features
+
+* **dispatch:** key changes to catalog entities ([6214634](https://github.com/orchard-suite/dispatch/commit/6214634fa5ac6529d5e010e9687e6e6c8b339513))
+
 ## [1.0.1](https://github.com/orchard-suite/dispatch/compare/v1.0.0...v1.0.1) (2026-11-23)
 
 ### Bug Fixes
