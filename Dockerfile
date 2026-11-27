@@ -9,6 +9,9 @@ FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 WORKDIR /src
+# git lets go fetch a module straight from its forge when the module proxy
+# does not have it yet, as just after a platformkit release.
+RUN apk add --no-cache git
 COPY go.mod go.sum ./
 RUN go mod download
 COPY VERSION ./
