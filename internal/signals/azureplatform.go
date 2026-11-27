@@ -42,11 +42,13 @@ var aggregations = map[string]string{
 // forms:
 //
 //	health <resource>
-//	metrics <resource> <metric> <aggregation> [namespace <ns>] [seen <metric>] [where <filter>]
+//	metrics <resource> <metric> <aggregation> [namespace <ns>] [grain <grain>] [seen <metric>] [where <filter>]
 //
 // health reads the resource's Resource Health history and answers the
 // minutes it was Unavailable or Degraded in the window. metrics reads one
-// platform metric at one-minute grain over the window and answers it under
+// platform metric over the window, at one-minute grain unless grain names
+// another the metric keeps (an ISO 8601 duration such as PT5M), and
+// answers it under
 // its aggregation across every point and series: the sum for total and
 // count, the least for minimum, the greatest for maximum, the mean for
 // average. where is the Metrics API's own $filter on the metric's
@@ -60,6 +62,7 @@ type PlatformQuery struct {
 	Metric      string
 	Aggregation string
 	Namespace   string
+	Grain       string
 	Seen        string
 	Filter      string
 }
@@ -101,10 +104,15 @@ func ParsePlatform(text string) (PlatformQuery, error) {
 		switch rest[0] {
 		case "namespace":
 			q.Namespace = rest[1]
+		case "grain":
+			if !grainRe.MatchString(rest[1]) {
+				return PlatformQuery{}, fmt.Errorf("grain %q is an ISO 8601 duration in minutes or hours, such as PT5M", rest[1])
+			}
+			q.Grain = rest[1]
 		case "seen":
 			q.Seen = rest[1]
 		default:
-			return PlatformQuery{}, fmt.Errorf("%q is not namespace, seen, or where", rest[0])
+			return PlatformQuery{}, fmt.Errorf("%q is not namespace, grain, seen, or where", rest[0])
 		}
 		rest = rest[2:]
 	}
@@ -118,6 +126,9 @@ func ParsePlatform(text string) (PlatformQuery, error) {
 	}
 	return q, nil
 }
+
+// grainRe is a metric grain: minutes or hours.
+var grainRe = regexp.MustCompile(`^PT[1-9][0-9]*[MH]$`)
 
 // whereRe is the word that starts a metrics query's filter.
 var whereRe = regexp.MustCompile(`\swhere(\s|$)`)
@@ -175,11 +186,15 @@ func (a *AzurePlatform) Read(ctx context.Context, q Query) (float64, error) {
 // number under the query's aggregation.
 func (a *AzurePlatform) metric(ctx context.Context, pq PlatformQuery, name, filter string, from, to time.Time) (float64, error) {
 	agg := aggregations[pq.Aggregation]
+	grain := pq.Grain
+	if grain == "" {
+		grain = "PT1M"
+	}
 	params := url.Values{
 		"api-version": {metricsAPI},
 		"metricnames": {name},
 		"aggregation": {agg},
-		"interval":    {"PT1M"},
+		"interval":    {grain},
 		"timespan":    {from.UTC().Format(time.RFC3339) + "/" + to.UTC().Format(time.RFC3339)},
 	}
 	if filter != "" {

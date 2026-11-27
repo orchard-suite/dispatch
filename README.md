@@ -613,7 +613,7 @@ says which.
 
   ```text
   health <resource>
-  metrics <resource> <metric> <aggregation> [namespace <ns>] [seen <metric>] [where <filter>]
+  metrics <resource> <metric> <aggregation> [namespace <ns>] [grain <grain>] [seen <metric>] [where <filter>]
   ```
 
   `health` reads the resource's Resource Health history (Availability
@@ -621,8 +621,9 @@ says which.
   `Degraded` in the window; a window partly `Unknown`, or older than the
   history, is no data unless it saw harm, and a type Resource Health does
   not cover is a failed store. `metrics` reads one platform metric at a
-  one-minute grain and answers it under its aggregation across every
-  point and series: the sum for `total` and `count`, the least for
+  one-minute grain, or the `grain` it names for a metric that keeps no
+  minutes (an ISO 8601 duration such as `PT5M`), and answers it under its
+  aggregation across every point and series: the sum for `total` and `count`, the least for
   `minimum`, the greatest for `maximum`, the mean for `average`. `where`
   is the Metrics API's own `$filter` on the metric's dimensions, to the
   end of the line, such as `ResponseType eq 'AuthorizationError' or

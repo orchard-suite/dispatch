@@ -221,9 +221,9 @@ func TestHarmIsAboveOrBelowAndAboveZeroWithNeither(t *testing.T) {
 }
 
 func TestPlatformQueriesParse(t *testing.T) {
-	q, err := ParsePlatform(`metrics {resource_id} Transactions Total namespace Microsoft.Storage/storageAccounts seen Transactions where ResponseType eq 'AuthorizationError' or ResponseType eq 'ClientThrottlingError'`)
+	q, err := ParsePlatform(`metrics {resource_id} Transactions Total namespace Microsoft.Storage/storageAccounts grain PT5M seen Transactions where ResponseType eq 'AuthorizationError' or ResponseType eq 'ClientThrottlingError'`)
 	if err != nil || q.Read != ReadMetrics || q.Resource != "{resource_id}" || q.Metric != "Transactions" || q.Aggregation != "total" ||
-		q.Namespace != "Microsoft.Storage/storageAccounts" || q.Seen != "Transactions" || q.Filter != "ResponseType eq 'AuthorizationError' or ResponseType eq 'ClientThrottlingError'" {
+		q.Namespace != "Microsoft.Storage/storageAccounts" || q.Grain != "PT5M" || q.Seen != "Transactions" || q.Filter != "ResponseType eq 'AuthorizationError' or ResponseType eq 'ClientThrottlingError'" {
 		t.Errorf("%+v %v", q, err)
 	}
 	if q, err := ParsePlatform("health {resource_id}"); err != nil || q.Read != ReadHealth {
@@ -235,6 +235,7 @@ func TestPlatformQueriesParse(t *testing.T) {
 		"metrics {resource_id} Availability minimum seen Transactions",
 		"metrics {resource_id} Transactions total where", "metrics {resource_id} Transactions total label x",
 		"metrics {resource_id} Transactions total seen",
+		"metrics {resource_id} Transactions total grain 5m", "metrics {resource_id} Transactions total grain P1D",
 	} {
 		if _, err := ParsePlatform(bad); err == nil {
 			t.Errorf("%q was taken", bad)
@@ -282,8 +283,11 @@ func TestAzurePlatformReadsAMetricUnderItsAggregation(t *testing.T) {
 		q.Get("$filter") != "ApiName eq 'o''shop'" || q.Get("api-version") == "" {
 		t.Errorf("the request: %v", q)
 	}
-	if v, err := read("metrics {resource_id} Availability minimum"); err != nil || v != 97.5 {
+	if v, err := read("metrics {resource_id} Availability minimum grain PT5M"); err != nil || v != 97.5 {
 		t.Errorf("a minimum is the least point: %v %v", v, err)
+	}
+	if q := asked[len(asked)-1]; q.Get("interval") != "PT5M" {
+		t.Errorf("the grain the query names: %v", q)
 	}
 	if _, err := read("metrics {resource_id} Transactions total where ResponseType eq 'AuthorizationError'"); !errors.Is(err, ErrNoData) {
 		t.Errorf("no series is no data: %v", err)
