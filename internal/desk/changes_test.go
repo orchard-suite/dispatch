@@ -222,10 +222,11 @@ func TestAnIncidentJoinsChangesToWhatItLeansOn(t *testing.T) {
 		[3]string{"sw_workload:shop", "services", "sw_service:shop-api"},
 		[3]string{"azure_resource:sub/shop/shop-db", "service", "sw_service:shop-api"},
 		[3]string{"plat_finding:x", "sw_workload", "sw_workload:shop"},
+		[3]string{"sw_deployment:d1", "service", "sw_service:shop-api"},
 	)
 	useCatalog(d, hub.URL)
 	st, _ := d.Store.Settings(ctx)
-	st.Leaning = incident.Leaning{Relations: []string{"services", "<-service"}, Depth: 2}
+	st.Leaning = incident.Leaning{Relations: []string{"services", "<-azure_resource:service"}, Depth: 2}
 	if err := d.Store.SaveSettings(ctx, st); err != nil {
 		t.Fatal(err)
 	}
@@ -244,6 +245,12 @@ func TestAnIncidentJoinsChangesToWhatItLeansOn(t *testing.T) {
 	leaners, err := d.orrery.Leaners(ctx, shopDB, st.Leaning)
 	if err != nil || len(leaners) != 2 || leaners[0].Key != "shop-api" || leaners[1] != shop {
 		t.Errorf("leaners of the database: %+v %v", leaners, err)
+	}
+	// A deployment record points at the service by the same relation, and
+	// the service leans on no record: the relation names its blueprint.
+	leans, err := d.orrery.LeansOn(ctx, change.Ref{Blueprint: "sw_service", Key: "shop-api"}, st.Leaning)
+	if err != nil || len(leans) != 1 || leans[0] != shopDB {
+		t.Errorf("what the service leans on: %+v %v", leans, err)
 	}
 	// With the hub down, the service and the workload still join.
 	hub.Close()

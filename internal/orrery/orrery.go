@@ -413,7 +413,7 @@ func (c *Client) lean(ctx context.Context, ref change.Ref, l incident.Leaning, l
 				return out, fmt.Errorf("orrery: relations of %s:%s: %w", at.Blueprint, at.Key, err)
 			}
 			for _, e := range edges {
-				forward, back := l.Leans(e.Relation)
+				forward, back := l.Leans(e.From.Blueprint, e.Relation)
 				var to change.Ref
 				switch {
 				// e.From leans on e.To when forward; e.To leans on e.From when back.

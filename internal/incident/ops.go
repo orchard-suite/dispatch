@@ -185,7 +185,9 @@ func ChangeKindOf(artifact string) string {
 // things lean on which: a thing leans on another when its trouble can come
 // from the other's. Each of Relations names a relation whose source leans
 // on its target, or, written "<-relation", one whose target leans on its
-// source. Depth is how many such hops to follow.
+// source. Either may name the blueprint at the relation's source, as
+// "blueprint:relation" or "<-blueprint:relation", so only edges from that
+// blueprint count. Depth is how many such hops to follow.
 type Leaning struct {
 	Relations []string `json:"relations,omitempty"`
 	Depth     int      `json:"depth,omitempty"`
@@ -194,13 +196,13 @@ type Leaning struct {
 // MaxLeanDepth is the most hops leaning is followed.
 const MaxLeanDepth = 4
 
-var relationName = regexp.MustCompile(`^(<-)?[a-z][a-z0-9_]{0,62}$`)
+var relationName = regexp.MustCompile(`^(<-)?([a-z][a-z0-9_]{0,62}:)?[a-z][a-z0-9_]{0,62}$`)
 
 // Validate checks the relations and the depth.
 func (l Leaning) Validate() error {
 	for _, r := range l.Relations {
 		if !relationName.MatchString(r) {
-			return fmt.Errorf("leans_on names relations, such as depends_on or <-service; %q is not one", r)
+			return fmt.Errorf("leans_on names relations, such as depends_on, <-service, or <-k8s_workload:workload; %q is not one", r)
 		}
 	}
 	if l.Depth < 0 || l.Depth > MaxLeanDepth {
@@ -218,16 +220,25 @@ func (l Leaning) Hops() int {
 	return max(l.Depth, 1)
 }
 
-// Leans says how an edge from one entity to another by a relation leans:
-// forward when its source leans on its target, back when its target leans
-// on its source.
-func (l Leaning) Leans(relation string) (forward, back bool) {
+// Leans says how an edge by a relation from an entity of a blueprint
+// leans: forward when its source leans on its target, back when its target
+// leans on its source.
+func (l Leaning) Leans(from, relation string) (forward, back bool) {
 	for _, r := range l.Relations {
-		if r == relation {
-			forward = true
+		r, isBack := strings.CutPrefix(r, "<-")
+		if bp, rel, ok := strings.Cut(r, ":"); ok {
+			if bp != from {
+				continue
+			}
+			r = rel
 		}
-		if r == "<-"+relation {
+		if r != relation {
+			continue
+		}
+		if isBack {
 			back = true
+		} else {
+			forward = true
 		}
 	}
 	return forward, back

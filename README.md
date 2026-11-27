@@ -531,8 +531,9 @@ relations, as the routing document's `settings.changes` names them:
 settings:
   changes:
     # A relation whose source leans on its target, or "<-relation" for one
-    # whose target leans on its source.
-    leans_on: [depends_on, consumes, services, "<-service"]
+    # whose target leans on its source. "blueprint:relation" and
+    # "<-blueprint:relation" count only edges from that blueprint.
+    leans_on: [depends_on, consumes, services, "<-azure_resource:service"]
     depth: 2
     # The estate's own effect kinds, and base kinds whose watch it changes.
     # A base kind keeps its family and unit; only its watch may differ.

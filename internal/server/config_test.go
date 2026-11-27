@@ -106,7 +106,7 @@ func TestConfigCarriesHowChangesAreRead(t *testing.T) {
 	doc := `settings:
   grouping_minutes: 15
   changes:
-    leans_on: [depends_on, "<-service"]
+    leans_on: [depends_on, "<-azure_resource:service"]
     depth: 2
     kinds:
       - {name: stops, family: disruption, means: It stops or restarts., unit: copies, watch: 45m}
@@ -141,7 +141,7 @@ func TestConfigCarriesHowChangesAreRead(t *testing.T) {
 	}
 	exported := h.do(h.api, bearer(httptest.NewRequest(http.MethodGet, "/v1/config", nil), shared))
 	back, err := config.Read(strings.NewReader(exported.Body.String()))
-	if err != nil || back.Settings.Changes == nil || back.Settings.Changes.Kinds[0].Watch != "45m0s" || back.Settings.Changes.LeansOn[1] != "<-service" {
+	if err != nil || back.Settings.Changes == nil || back.Settings.Changes.Kinds[0].Watch != "45m0s" || back.Settings.Changes.LeansOn[1] != "<-azure_resource:service" {
 		t.Fatalf("export %v %s", err, exported.Body.String())
 	}
 	if rec := put(exported.Body.String()); rec.Code != 200 {
