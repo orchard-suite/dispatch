@@ -105,6 +105,9 @@ func (d *Desk) announceChange(ctx context.Context, c incident.Change) {
 	if c.By != "" {
 		e.Facts = append(e.Facts, notice.Fact{Name: "By", Value: c.By})
 	}
+	if c.Outcome != "" {
+		e.Facts = append(e.Facts, notice.Fact{Name: "Outcome", Value: c.Outcome})
+	}
 	if c.URL != "" {
 		e.Links = []notice.Link{{Title: "The change", URL: c.URL}}
 	}
@@ -223,7 +226,8 @@ type keptEvent struct {
 // sender is the token's name. An event already kept by its sender and key
 // is a repeat and changes nothing. A change.stated event makes a change
 // keyed to its things, with its effects; the others attach to it by their
-// of, whichever comes first.
+// of, whichever comes first. A change is announced once it ended having
+// run, at its end.
 func (d *Desk) TakeChangeEvents(ctx context.Context, producer string, raws []json.RawMessage) (Kept, error) {
 	var res Kept
 	if len(raws) == 0 || len(raws) > MaxChangeEvents {
@@ -283,7 +287,7 @@ func (d *Desk) TakeChangeEvents(ctx context.Context, producer string, raws []jso
 			return res, d.refuseEvent(ctx, producer, i, "digest_mismatch", fmt.Sprintf("the change it names has digest %s, the event says %s", want, h.Digest))
 		}
 	}
-	var stated []int64
+	touched := map[int64]bool{}
 	now := d.Now()
 	err = d.Store.Tx(ctx, func(tx *sql.Tx) error {
 		for _, k := range batch {
@@ -291,12 +295,12 @@ func (d *Desk) TakeChangeEvents(ctx context.Context, producer string, raws []jso
 				res.Repeats++
 				continue
 			}
-			id, made, err := d.keepChangeEvent(ctx, tx, producer, k, kinds, now)
+			id, err := d.keepChangeEvent(ctx, tx, producer, k, kinds, now)
 			if err != nil {
 				return err
 			}
-			if made {
-				stated = append(stated, id)
+			if id != 0 {
+				touched[id] = true
 			}
 			res.Kept++
 		}
@@ -311,16 +315,33 @@ func (d *Desk) TakeChangeEvents(ctx context.Context, producer string, raws []jso
 	for range res.Repeats {
 		d.metrics.ChangeEvent(ctx, producer, "repeat")
 	}
-	d.log.InfoContext(ctx, "change events kept", "producer", producer, "kept", res.Kept, "repeats", res.Repeats, "changes", len(stated))
-	for _, id := range stated {
-		c, err := d.Store.Change(ctx, d.Store.DB(), id)
-		if err != nil {
-			d.log.ErrorContext(ctx, "a stated change not read back", "change", id, "error", err)
-			continue
-		}
-		d.announceChange(ctx, c)
+	d.log.InfoContext(ctx, "change events kept", "producer", producer, "kept", res.Kept, "repeats", res.Repeats, "changes", len(touched))
+	for id := range touched {
+		d.announceIfRan(ctx, id)
 	}
 	return res, nil
+}
+
+// announceIfRan sends a change its events made to the channels once it
+// ended having run (ok, or failed part way), at its end, and only once. A
+// change refused or not yet ended is never announced.
+func (d *Desk) announceIfRan(ctx context.Context, id int64) {
+	claimed, err := d.Store.ClaimAnnouncement(ctx, id)
+	if err != nil {
+		d.log.ErrorContext(ctx, "change announcement not claimed", "change", id, "error", err)
+		return
+	}
+	if !claimed {
+		d.log.DebugContext(ctx, "change not announced: it has not ended having run, or was announced already", "change", id)
+		return
+	}
+	c, err := d.Store.Change(ctx, d.Store.DB(), id)
+	if err != nil {
+		d.log.ErrorContext(ctx, "an ended change not read back", "change", id, "error", err)
+		return
+	}
+	d.log.InfoContext(ctx, "change announced: it ended having run", "change", id, "outcome", c.Outcome)
+	d.announceChange(ctx, c)
 }
 
 func (d *Desk) refuseEvent(ctx context.Context, producer string, i int, reason, detail string) error {
@@ -330,8 +351,8 @@ func (d *Desk) refuseEvent(ctx context.Context, producer string, i int, reason, 
 }
 
 // keepChangeEvent writes one event and what it says of its change. It
-// answers the change a change.stated event made, and whether it made one.
-func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string, k keptEvent, kinds *change.Kinds, now time.Time) (int64, bool, error) {
+// answers the change the event is of, once that change is kept.
+func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string, k keptEvent, kinds *change.Kinds, now time.Time) (int64, error) {
 	h := k.head
 	row := store.ChangeEvent{Event: h.Event, Sender: h.Sender, Key: h.Key, Of: h.Of, At: h.At, Body: k.raw}
 	stated, ok := k.ev.(*change.Stated)
@@ -341,20 +362,20 @@ func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string,
 		case errors.Is(err, store.ErrNotFound):
 			d.log.InfoContext(ctx, "change event kept before its change", "event", h.Event, "sender", h.Sender, "key", h.Key, "of_sender", h.Of.Sender, "of_key", h.Of.Key)
 		case err != nil:
-			return 0, false, err
+			return 0, err
 		default:
 			row.ChangeID = c.ID
 			if err := d.applyChangeEvent(ctx, tx, c.ID, k.ev); err != nil {
-				return 0, false, err
+				return 0, err
 			}
 		}
 		if err := d.Store.InsertChangeEvent(ctx, tx, row, now); err != nil {
-			return 0, false, err
+			return 0, err
 		}
 		if row.ChangeID != 0 {
-			return 0, false, d.maybeWatch(ctx, tx, row.ChangeID, kinds, now)
+			return row.ChangeID, d.maybeWatch(ctx, tx, row.ChangeID, kinds, now)
 		}
-		return 0, false, nil
+		return 0, nil
 	}
 	s := stated.Statement
 	self := change.EventRef{Sender: h.Sender, Key: h.Key}
@@ -371,24 +392,24 @@ func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string,
 			Record: &self, Digest: h.Digest, Effects: s.Effects,
 		})
 		if err != nil {
-			return 0, false, err
+			return 0, err
 		}
 		c.ID, made = id, true
 	case err != nil:
-		return 0, false, err
+		return 0, err
 	default:
 		// A change posted with this record before its events takes the statement.
 		if err := d.Store.StateChange(ctx, tx, c.ID, h.Digest, s.Effects, s.Things); err != nil {
-			return 0, false, err
+			return 0, err
 		}
 	}
 	row.ChangeID = c.ID
 	if err := d.Store.InsertChangeEvent(ctx, tx, row, now); err != nil {
-		return 0, false, err
+		return 0, err
 	}
 	early, err := d.Store.ChangeEventsOf(ctx, tx, self)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
 	for _, e := range early {
 		if e.ChangeID != 0 {
@@ -396,17 +417,17 @@ func (d *Desk) keepChangeEvent(ctx context.Context, tx *sql.Tx, producer string,
 		}
 		ev, err := change.Decode(e.Body)
 		if err != nil {
-			return 0, false, fmt.Errorf("a kept change event no longer decodes: %w", err)
+			return 0, fmt.Errorf("a kept change event no longer decodes: %w", err)
 		}
 		if err := d.applyChangeEvent(ctx, tx, c.ID, ev); err != nil {
-			return 0, false, err
+			return 0, err
 		}
 	}
 	if err := d.Store.AttachChangeEvents(ctx, tx, self, c.ID); err != nil {
-		return 0, false, err
+		return 0, err
 	}
 	d.log.InfoContext(ctx, "change stated", "change", c.ID, "made", made, "sender", h.Sender, "key", h.Key, "things", len(s.Things), "effects", len(s.Effects), "early_events", len(early))
-	return c.ID, made, d.maybeWatch(ctx, tx, c.ID, kinds, now)
+	return c.ID, d.maybeWatch(ctx, tx, c.ID, kinds, now)
 }
 
 // applyChangeEvent keeps on its change what an event after the statement

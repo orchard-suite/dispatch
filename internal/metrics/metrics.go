@@ -97,7 +97,7 @@ func New(stats func() Stats) (*Metrics, error) {
 	if mt.sights, err = m.Int64Counter("dispatch.watch.sights", metric.WithDescription("What the watch saw of one kind on one subject, by outcome: clean, harm, or blind.")); err != nil {
 		return nil, err
 	}
-	if mt.observed, err = m.Int64Counter("dispatch.watch.sends", metric.WithDescription("Observations handed on, by source (the target: annals or orrery) and outcome: sent or retry.")); err != nil {
+	if mt.observed, err = m.Int64Counter("dispatch.watch.sends", metric.WithDescription("Observations handed on, by source (the target: annals or orrery) and outcome: sent, retry, or refused.")); err != nil {
 		return nil, err
 	}
 	if mt.pages, err = m.Int64Counter("dispatch.pages", metric.WithDescription("Escalation chain pages, by outcome: started, escalated, acknowledged, or unanswered.")); err != nil {

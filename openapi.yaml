@@ -1090,7 +1090,7 @@ components:
         title: {type: string}
         url: {type: string}
         by: {type: string}
-        at: {type: string, format: date-time}
+        at: {type: string, format: date-time, description: "When it took effect: its end once it ended, else when it was made or stated."}
         run: {type: string}
         record: {$ref: "#/components/schemas/ChangeRecord"}
         digest: {type: string, description: "The statement's digest, from its change.stated event."}

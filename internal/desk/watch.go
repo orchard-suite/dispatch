@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	kitannals "github.com/orchard-suite/platformkit/v3/annals"
 	"github.com/orchard-suite/platformkit/v3/change"
+	kitorrery "github.com/orchard-suite/platformkit/v3/orrery"
 
 	"github.com/orchard-suite/dispatch/internal/alertmanager"
 	"github.com/orchard-suite/dispatch/internal/annals"
@@ -466,8 +469,9 @@ func (d *Desk) raiseChangeAlert(ctx context.Context, name, fingerprint, service,
 	}
 }
 
-// handOn hands each saved observation on to its target, and keeps the
-// ones not taken to try again later. None is ever dropped.
+// handOn hands each saved observation on to its target. One a target
+// refused for its content is kept as refused and never sent again; any
+// other failure is kept to try again later.
 func (d *Desk) handOn(ctx context.Context) {
 	now := d.Now()
 	sends, err := d.Store.DueSends(ctx, now, 50)
@@ -482,6 +486,14 @@ func (d *Desk) handOn(ctx context.Context) {
 			d.log.InfoContext(ctx, "observation taken", "change", x.ChangeID, "target", x.Target, "attempt", x.Attempts+1)
 			if err := d.Store.SendTaken(ctx, x.ID, now); err != nil {
 				d.log.ErrorContext(ctx, "observation not marked taken", "change", x.ChangeID, "target", x.Target, "error", err)
+			}
+			continue
+		}
+		if refused(err) {
+			d.metrics.ObservedSend(ctx, x.Target, "refused")
+			d.log.WarnContext(ctx, "observation refused for its content; it is never tried again", "change", x.ChangeID, "target", x.Target, "attempt", x.Attempts+1, "error", err)
+			if err := d.Store.SendRefused(ctx, x.ID, clipText(err.Error(), 300)); err != nil {
+				d.log.ErrorContext(ctx, "observation not marked refused", "change", x.ChangeID, "target", x.Target, "error", err)
 			}
 			continue
 		}
@@ -510,6 +522,20 @@ func (d *Desk) sendObserved(ctx context.Context, x store.Send) error {
 		return d.orrery.ChangeEvents(ctx, []json.RawMessage{x.Body})
 	}
 	return fmt.Errorf("no target %q", x.Target)
+}
+
+// refused says whether a target refused an observation for its content,
+// which sending it again never changes: Annals refusing the event
+// (platformkit's annals.ErrInvalid, its 422 or the client's own check), or
+// the hub answering 400 naming the refused item's index. Anything else (a
+// timeout, a 5xx, a 404, a 400 that names no item) is tried again.
+func refused(err error) bool {
+	var inv *kitannals.ErrInvalid
+	if errors.As(err, &inv) {
+		return true
+	}
+	var api *kitorrery.APIError
+	return errors.As(err, &api) && api.Status == http.StatusBadRequest && api.Index != nil
 }
 
 // sendWait is how long a send waits before its next try: the notice

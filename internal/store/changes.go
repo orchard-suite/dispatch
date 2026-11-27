@@ -49,6 +49,10 @@ func (s *Store) AddChange(ctx context.Context, c incident.Change) (incident.Chan
 		if err != nil {
 			return err
 		}
+		// A posted change is announced as it is kept.
+		if _, err := tx.ExecContext(ctx, `UPDATE changes SET announced = 1 WHERE id = ?`, id); err != nil {
+			return err
+		}
 		kept = true
 		c, err = s.Change(ctx, tx, id)
 		return err
@@ -84,9 +88,21 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	return id, nil
 }
 
-// EndChange keeps how a change ended.
+// EndChange keeps how a change ended. Its time becomes its end, which is
+// when it took effect, so the incidents near it are joined from then.
 func (s *Store) EndChange(ctx context.Context, q querier, id int64, outcome string, at time.Time) error {
-	return s.affected(q.ExecContext(ctx, `UPDATE changes SET outcome = ?, ended_at = ? WHERE id = ?`, outcome, fmtTime(at), id))
+	return s.affected(q.ExecContext(ctx, `UPDATE changes SET outcome = ?, ended_at = ?, at = ? WHERE id = ?`, outcome, fmtTime(at), fmtTime(at), id))
+}
+
+// ClaimAnnouncement marks a change announced when it ended having run and
+// was not announced before, and says whether it did.
+func (s *Store) ClaimAnnouncement(ctx context.Context, id int64) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `UPDATE changes SET announced = 1 WHERE id = ? AND announced = 0 AND outcome IN (?, ?)`, id, change.OutcomeOK, change.OutcomeFailed)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }
 
 // RouteChange keeps the judge's route for a change.

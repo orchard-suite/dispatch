@@ -354,6 +354,12 @@ CREATE TABLE change_sends (
 );
 CREATE INDEX change_sends_due ON change_sends(state, next_at);
 ALTER TABLE change_events ADD COLUMN told INTEGER NOT NULL DEFAULT 0;`,
+	// 13: a change is announced once, when it ended having run (a posted
+	// one as it is kept), and its time is its end once it has one. Every
+	// change before this was announced already.
+	`ALTER TABLE changes ADD COLUMN announced INTEGER NOT NULL DEFAULT 0;
+UPDATE changes SET announced = 1;
+UPDATE changes SET at = ended_at WHERE ended_at IS NOT NULL;`,
 }
 
 // upgrade runs the upgrades this database has not had, each in its own

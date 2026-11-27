@@ -68,8 +68,10 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
   `internal/store/watches.go` is their rows.
 - Blind is never clean: a kind the watch could not see for any reason is
   `blind`. A watch is a row before its window starts, and an observation
-  is a row before it is sent; a refusal is retried from the row, never
-  dropped, and never fails the watch.
+  is a row before it is sent; a failure is retried from the row, never
+  dropped, and never fails the watch. A refusal of what the event says
+  (`refused` in `watch.go`) is final: the row is kept as refused, and the
+  event is never sent again.
 - `internal/desk` is the logic: a webhook folds into incidents, a person
   moves one through its states, and every change is written to the
   timeline, counted, announced, pushed to the catalog, and posted to the

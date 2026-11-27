@@ -516,7 +516,11 @@ Changes arrive two ways:
   `change.stated` event makes a change keyed to the statement's things,
   carrying its digest and its predicted effects; `change.routed`,
   `change.decided`, `change.ended`, and `change.observed` attach to it by
-  their `of`, whichever arrives first. A batch is kept whole or not at
+  their `of`, whichever arrives first. Such a change is sent on as a
+  `change.<kind>` notice once, when its `change.ended` says it ran (`ok`,
+  or `failed` part way), at its end; a change refused or never run is not
+  announced. Once ended, a change's `at` is its end, when it took effect,
+  so incidents near it are joined from then. A batch is kept whole or not at
   all: one refused event answers 400 with its index and reason, so a
   sender can split the batch to find it. Only a token issued on
   **Machines** may send events; a personal token or the shared secret is a
@@ -607,9 +611,14 @@ says which.
   saves it once for each place it goes: Annals, through platformkit's
   `annals` client, and the catalog, `POST /v1/ingest/change-events` on
   `ORRERY_URL` with `{"events":[...]}` and the Orrery source token. A
-  worker hands each one on until it is taken; a refusal is logged and tried
-  again after 30 seconds, 2, 10, and 30 minutes, then every hour. None is
-  dropped, and a send never holds up the watch.
+  worker hands each one on until it is taken. A refusal of what the event
+  says is final, since sending it again never changes it: Annals refusing
+  the event (422, or the kit's own check), or the hub answering 400 with
+  the `index` of the event it refused. The send is kept as `refused` with
+  the reason, logged, and never tried again. Any other failure (no answer,
+  a timeout, a 5xx, a 404, a 400 that names no event) is tried again after
+  30 seconds, 2, 10, and 30 minutes, then every hour. None is dropped, and
+  a send never holds up the watch.
 - **It survives a restart.** A watch is a row from the moment the change
   ends; the worker closes each one whose window has passed, however long
   the desk was down. When the catalog cannot say what leans on a subject,
@@ -850,7 +859,7 @@ metrics; the rest are the desk's own, in `internal/metrics`:
 | `dispatch.change_events` | source (the sender), outcome: `kept`, `repeat`, `refused` |
 | `dispatch.watches` | outcome: `started`, `skipped`, `observed`, `missed`, `unwatched` |
 | `dispatch.watch.sights` | outcome: `clean`, `harm`, `blind` |
-| `dispatch.watch.sends` | source (the target: `annals`, `orrery`), outcome: `sent`, `retry` |
+| `dispatch.watch.sends` | source (the target: `annals`, `orrery`), outcome: `sent`, `retry`, `refused` |
 | `process.cpu.time`, `process.memory.usage` | state, kind |
 
 ## Settings

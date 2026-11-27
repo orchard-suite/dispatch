@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/orchard-suite/platformkit/v3 v3.5.0
+	github.com/orchard-suite/platformkit/v3 v3.6.0
 	github.com/yuin/goldmark v1.8.6
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/metric v1.47.0

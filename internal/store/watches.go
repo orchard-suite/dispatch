@@ -122,6 +122,12 @@ func (s *Store) SendAgain(ctx context.Context, id int64, next time.Time, why str
 	return s.affected(s.db.ExecContext(ctx, `UPDATE change_sends SET attempts = attempts + 1, next_at = ?, last_error = ? WHERE id = ?`, fmtTime(next), why, id))
 }
 
+// SendRefused keeps a send its target refused for its content, with why,
+// and tries it no more.
+func (s *Store) SendRefused(ctx context.Context, id int64, why string) error {
+	return s.affected(s.db.ExecContext(ctx, `UPDATE change_sends SET state = 'refused', attempts = attempts + 1, last_error = ? WHERE id = ?`, why, id))
+}
+
 // Sends lists a change's sends: each target, whether it was taken, and the
 // last refusal.
 func (s *Store) Sends(ctx context.Context, q querier, changeID int64) ([]incident.WatchSend, error) {

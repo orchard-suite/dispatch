@@ -399,3 +399,168 @@ func TestTheObservationIsHandedOnUntilTaken(t *testing.T) {
 		t.Errorf("annals is sent the record with its effects: %s", k.bodies["/v1/events"])
 	}
 }
+
+// changeNotices waits for want change notices and answers each one's kind
+// and time.
+func changeNotices(t *testing.T, d *Desk, want int) []string {
+	t.Helper()
+	read := func() []string {
+		rows, err := d.Store.DB().Query(`SELECT kind, json_extract(body, '$.at') FROM notice_events WHERE kind LIKE 'change.%' ORDER BY id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var k, at string
+			_ = rows.Scan(&k, &at)
+			out = append(out, k+"@"+at)
+		}
+		return out
+	}
+	var got []string
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if got = read(); len(got) >= want {
+			break
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	return read()
+}
+
+func TestAChangeIsAnnouncedWhenItEndedHavingRun(t *testing.T) {
+	ctx := context.Background()
+	d := watchDesk(t, filepath.Join(t.TempDir(), "d.db"), hubFor(t).URL, signals.NewMemory(), nil)
+	t0 := d.Now()
+	ran := changetest.New("orrery", "run-ran", []change.Ref{shopPods}, changetest.Grants(shopPods))
+	refusedRun := changetest.New("orrery", "run-refused", []change.Ref{shopPods}, changetest.Grants(shopPods))
+	if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(ran.Stated(t0), refusedRun.Stated(t0))); err != nil {
+		t.Fatal(err)
+	}
+	if got := changeNotices(t, d, 0); len(got) != 0 {
+		t.Fatalf("a change only stated is not announced: %v", got)
+	}
+	end := t0.Add(3 * time.Hour)
+	if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(ran.Ended(change.OutcomeOK, end), refusedRun.Ended(change.OutcomeRefused, end))); err != nil {
+		t.Fatal(err)
+	}
+	want := "change.terraform_plan@" + end.UTC().Format(time.RFC3339)
+	if got := changeNotices(t, d, 1); len(got) != 1 || got[0] != want {
+		t.Errorf("the change that ran is announced at its end, the refused one never: %v", got)
+	}
+	if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(ran.Ended(change.OutcomeOK, end))); err != nil {
+		t.Fatal(err)
+	}
+	// Its end before its statement still announces it once the statement comes.
+	late := changetest.New("orrery", "run-late", []change.Ref{shopPods}, changetest.Grants(shopPods))
+	if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(late.Ended(change.OutcomeFailed, end))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(late.Stated(t0))); err != nil {
+		t.Fatal(err)
+	}
+	if got := changeNotices(t, d, 2); len(got) != 2 {
+		t.Errorf("once each, the late one too: %v", got)
+	}
+	// An incident joins it from its end, not from when it was stated.
+	inc := incident.Incident{ID: 9, Service: "elsewhere", Workload: "", OpenedAt: end.Add(10 * time.Minute)}
+	d.Now = func() time.Time { return end.Add(20 * time.Minute) }
+	near, err := d.Store.Changes(ctx, store.ChangeFilter{Entities: []change.Ref{shopPods}, Since: inc.OpenedAt.Add(-ChangesBefore), Until: d.Now()})
+	if err != nil || len(near) != 3 {
+		t.Errorf("the ended changes are near an incident after their end: %d %v", len(near), err)
+	}
+	// A change posted to the desk is announced as it is kept.
+	if _, _, err := d.AddChange(ctx, incident.Change{Producer: "ci", Service: "shop", Title: "shop 2.0"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := changeNotices(t, d, 3); len(got) != 3 || !strings.HasPrefix(got[2], "change.deploy@") {
+		t.Errorf("a posted change: %v", got)
+	}
+}
+
+func TestARefusalForItsContentIsFinal(t *testing.T) {
+	cases := []struct {
+		name       string
+		annals     func(http.ResponseWriter)
+		orrery     func(http.ResponseWriter)
+		annalsWant string
+		orreryWant string
+	}{
+		{"annals and the hub refuse what the event says",
+			func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = w.Write([]byte(`{"index":0,"status":"refused","reason":"bad_label","error":"label is bad"}`))
+			},
+			func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"events[0]: of.key names no change this hub stated","index":0}`))
+			}, "refused", "refused"},
+		{"a refusal of the body, not an event, and a route not there yet",
+			func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"bad json","reason":"bad_json"}`))
+			},
+			func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"Not found"}`))
+			}, "pending", "pending"},
+		{"a 400 that names no event, and a server failing",
+			func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) },
+			func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"The body is {\"events\": [...]}"}`))
+			}, "pending", "pending"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			var mu sync.Mutex
+			posts := map[string]int{}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				posts[r.URL.Path]++
+				mu.Unlock()
+				if r.URL.Path == "/v1/events" {
+					tc.annals(w)
+					return
+				}
+				tc.orrery(w)
+			}))
+			defer srv.Close()
+			log := slog.New(slog.NewTextHandler(io.Discard, nil))
+			poster := annals.New(srv.URL, "annals-token", log, func(context.Context, string) {})
+			mem := signals.NewMemory()
+			mem.Set(shopRestarts, 0)
+			d := watchDesk(t, filepath.Join(t.TempDir(), "d.db"), hubFor(t).URL, mem, poster)
+			d.orrery = orrery.New(orrery.Config{URL: srv.URL, Token: "read", PushToken: "push"}, log, func(context.Context, string) {})
+			watchSettings(t, d, signals.Signal{Blueprint: "k8s_workload", Signal: "restarts", Kinds: []string{"stops"}, Store: "prom", Query: restarts})
+			c := changetest.New("orrery", "run-9", []change.Ref{shopPods}, changetest.Stops(shopPods))
+			at := d.Now()
+			if _, err := d.TakeChangeEvents(ctx, "orrery", changetest.Raws(c.Stated(at), c.Ended(change.OutcomeOK, at))); err != nil {
+				t.Fatal(err)
+			}
+			advance(d, time.Hour)
+			d.WatchChanges(ctx)
+			advance(d, 2*time.Hour)
+			d.WatchChanges(ctx)
+			got := map[string]incident.WatchSend{}
+			for _, s := range watchOf(t, d, "run-9").Watch.Sends {
+				got[s.Target] = s
+			}
+			if s := got[SendAnnals]; s.State != tc.annalsWant || s.LastError == "" {
+				t.Errorf("annals: %+v", s)
+			}
+			if s := got[SendOrrery]; s.State != tc.orreryWant || s.LastError == "" {
+				t.Errorf("orrery: %+v", s)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if tc.annalsWant == "refused" && posts["/v1/events"] != 1 {
+				t.Errorf("a final refusal is never tried again: annals had %d posts", posts["/v1/events"])
+			}
+			if tc.orreryWant == "refused" && posts["/v1/ingest/change-events"] != 1 {
+				t.Errorf("a final refusal is never tried again: the hub had %d posts", posts["/v1/ingest/change-events"])
+			}
+		})
+	}
+}
