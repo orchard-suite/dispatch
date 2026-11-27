@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1](https://github.com/orchard-suite/dispatch/compare/v1.3.0...v1.3.1) (2026-11-27)
+
+### Bug Fixes
+
+* **dispatch:** read a metric at the grain it keeps ([1ebc75d](https://github.com/orchard-suite/dispatch/commit/1ebc75d8406c2dedd1bdcfcd4253f053c657141e))
+
 ## [1.3.0](https://github.com/orchard-suite/dispatch/compare/v1.2.2...v1.3.0) (2026-11-27)
 
 ### Features
