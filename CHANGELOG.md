@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1](https://github.com/orchard-suite/dispatch/compare/v1.2.0...v1.2.1) (2026-11-27)
+
+### Bug Fixes
+
+* **dispatch:** end refused sends, announce at end ([7d9ca57](https://github.com/orchard-suite/dispatch/commit/7d9ca572db165ac8e122d45fd9fc75780040d775))
+
 ## [1.2.0](https://github.com/orchard-suite/dispatch/compare/v1.1.1...v1.2.0) (2026-11-27)
 
 ### Features
