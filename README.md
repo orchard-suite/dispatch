@@ -954,6 +954,7 @@ curl -H 'Authorization: Bearer local-secret' --data @internal/server/testdata/al
 curl -H 'X-Forwarded-Email: you@example.com' -H 'X-Forwarded-Groups: Admin' localhost:8080/
 ```
 
-`make check` runs gofmt, vet, and the tests, and `make land` runs it before
-it lands the commits; CI runs it too, before every release. Releases are cut by CI from
+`make check` runs gofmt, vet, and the tests, and `make land` runs it on the
+tree that lands and signs a landing proof the release verifies; CI runs it
+too, before every release. Releases are cut by CI from
 conventional commits on `main`; the image is `ghcr.io/orchard-suite/dispatch:<version>`.

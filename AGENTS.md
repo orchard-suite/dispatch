@@ -275,8 +275,9 @@ https://github.com/orchard-suite/hedge/blob/main/docs/fixtures.md.
 ## Delivery
 
 Agents push to main and land with `make land` (`make land BRANCH=<branch>`
-from a worktree): it runs `make check`, then `release-damnit land`. CI runs
-the same check on every pull request and before every release, then
+from a worktree): `release-damnit land` runs the config's check, `make
+check`, on the tree that lands and signs a landing proof the release
+verifies. CI runs the same check on every pull request and before every release, then
 versions every `feat` and `fix`, tags it, and builds
 `ghcr.io/orchard-suite/dispatch:<version>` for `linux/amd64`, signed with
 cosign. Never edit `VERSION`, the manifest, or `CHANGELOG.md` by hand.
@@ -287,7 +288,7 @@ cosign. Never edit `VERSION`, the manifest, or `CHANGELOG.md` by hand.
 make check
 ```
 
-Run it before every commit; `make land` runs it again, and CI runs it on
+Run it before every commit; `make land` runs it again and signs its proof, and CI runs it on
 every pull request and release.
 It needs Go (see `go.mod`). `make run` starts
 a local server on 8080, 8081, and 8082 with `local-secret` as the shared

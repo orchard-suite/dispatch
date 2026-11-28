@@ -30,6 +30,7 @@ run: build
 	mkdir -p data
 	PUBLIC_URL=http://localhost:8080 DATA_DIR=data STATUS_ADDR=:8082 ALERTMANAGER_TOKEN=local-secret ./dist/dispatch
 
-# Run the check, then land the commits on main.
-land: check
+# Land the commits on main: release-damnit runs the config's check on the
+# tree that lands and signs its proof.
+land:
 	release-damnit land $(BRANCH)
